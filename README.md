@@ -19,7 +19,7 @@ Application Electron pour télécharger et installer automatiquement les jeux de
 
 ## Installation rapide (Windows)
 
-1. Double-cliquez sur  `install.bat`  pour installer automatiquement les dépendances
+1. Double-cliquez sur  `install.bat`  pour installer automatiquement les  dépendances
 
 OU
 
