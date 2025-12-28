@@ -257,7 +257,7 @@ def main():
     create_update_script()
     create_desktop_shortcut()
 
-    print("🎉 INSTALLATION  TERMINÉE ")
+    print("🎉  INSTALLATION  TERMINÉE ")
 
 if __name__ == "__main__":
     main()
