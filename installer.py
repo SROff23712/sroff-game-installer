@@ -225,20 +225,22 @@ if __name__ == "__main__":
 
 # ================= SHORTCUT =================
 
-# ================= SHORTCUT =================
-
 def create_desktop_shortcut():
     shortcut = DESKTOP_DIR / "Sroff Game Installer.lnk"
     launcher_vbs = BASE_DIR / "launcher.vbs"
+    icon_path = BASE_DIR / "icon.ico"
+    
     ps = f'''
 $WshShell = New-Object -ComObject WScript.Shell
 $Shortcut = $WshShell.CreateShortcut("{shortcut}")
 $Shortcut.TargetPath = "{launcher_vbs}"
 $Shortcut.WorkingDirectory = "{BASE_DIR}"
+$Shortcut.IconLocation = "{icon_path}"
 $Shortcut.Save()
 '''
     subprocess.run(["powershell", "-Command", ps], capture_output=True)
-    print("✅ Raccourci bureau créé vers launcher.vbs")
+    print("✅ Raccourci bureau créé avec icône")
+
 
 # ================= MAIN =================
 
@@ -257,7 +259,7 @@ def main():
     create_update_script()
     create_desktop_shortcut()
 
-    print("🎉  INSTALLATION  TERMINÉE ")
+    print("🎉 INSTALLATION TERMINÉE")
 
 if __name__ == "__main__":
     main()
