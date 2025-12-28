@@ -227,7 +227,7 @@ if __name__ == "__main__":
 
 def create_desktop_shortcut():
     shortcut = DESKTOP_DIR / "Sroff Game Installer.lnk"
-    launcher_vbs = BASE_DIR / "launcher.vbs"
+    launcher_vbs = BASE_DIR / "start.bat"
     icon_path = BASE_DIR / "icon.ico"
     
     ps = f'''
