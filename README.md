@@ -1,174 +1,166 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+# Sroff Game Installer
+Application Electron pour télécharger et installer automatiquement les jeux depuis votre site sroff-crack.
 
-import os
-import sys
-import json
-import subprocess
-import urllib.request
-from pathlib import Path
-import time
+## Fonctionnalités
 
-# ================== CONFIG ==================
-GITHUB_REPO = "SROff23712/sroff-game-installer"
-GITHUB_BRANCH = "master"
+- 📥 Téléchargement automatique des jeux ( ZIP et Torrent )
+- 📦 Extraction automatique des fichiers ZIP
+- 🎮 Installation dans `C:\sroff-game\nomdujeux`
+- 🔗 Création automatique de raccourcis sur le bureau 
+- 🔍 Recherche de jeux 
+- ✅ Indication des jeux déjà installés
+- 📊 Suivi de progression en temps  réel
 
-BASE_DIR = Path(os.path.expanduser("~")) / "AppData" / "Local" / "Programs" / "Sroff Game Installer"
-APP_VERSION_FILE = BASE_DIR.parent / "ash-version-app.json"
-DESKTOP_DIR = Path(os.path.expanduser("~")) / "Desktop"
-# ============================================
+## Prérequis
 
-# ----------------- Charger le TOKEN depuis .env -----------------
-env_path = Path(__file__).parent / ".env"
-if env_path.exists():
-    with open(env_path, "r", encoding="utf-8") as f:
-        for line in f:
-            if "=" in line:
-                k, v = line.strip().split("=", 1)
-                os.environ.setdefault(k, v)
-TOKEN = os.getenv("TOKEN")
+- Node.js (version  16 ou supérieure)
+- npm ou yarn
+- Windows 10/11
 
-# ----------------- Fonctions -----------------
-def get_latest_commit_sha(repo, branch):
-    """Récupère le dernier SHA d’un commit via l’API GitHub"""
-    try:
-        api_url = f"https://api.github.com/repos/{repo}/commits/{branch}"
-        req = urllib.request.Request(api_url)
-        req.add_header("User-Agent", "Sroff-Updater")
-        if TOKEN:
-            req.add_header("Authorization", f"token {TOKEN}")
-        with urllib.request.urlopen(req, timeout=10) as response:
-            data = json.loads(response.read().decode())
-            return data["sha"]
-    except Exception as e:
-        print(f"⚠️ Erreur récupération dernier commit : {e}")
-        return None
+## Installation rapide (Windows)
 
-def read_local_sha():
-    try:
-        with open(APP_VERSION_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            return data.get("installed_sha")
-    except:
-        return None
+1. Double-cliquez sur  `install.bat`  pour installer automatiquement les dépendances
 
-def run_npm_start(base_dir):
-    """Lance npm start"""
-    npm_cmds = [
-        os.path.expandvars(r"%ProgramFiles%\nodejs\npm.cmd"),
-        os.path.expandvars(r"%ProgramFiles(x86)%\nodejs\npm.cmd")
-    ]
-    npm = next((cmd for cmd in npm_cmds if Path(cmd).exists()), None)
-    if not npm:
-        print("❌ npm introuvable. Installe Node.js avant de lancer l'app.")
-        return
-    subprocess.Popen([npm, "start"], cwd=base_dir, shell=True)
+OU
 
-def create_update_script(latest_sha):
-    """Crée update.py dans le dossier parent"""
-    update_path = BASE_DIR.parent.parent / "update.py"
-    content = f'''#!/usr/bin/env python3
-import os, sys, shutil, subprocess, zipfile, urllib.request, json, time
-from pathlib import Path
+1. Ouvrez un terminal dans le dossier `installer-app`
+2. Installez les dépendances :
+```bash
+npm install
+```
 
-BASE_DIR = Path(r"{BASE_DIR}")
-DESKTOP_DIR = Path(r"{DESKTOP_DIR}")
-APP_VERSION_FILE = BASE_DIR.parent / "ash-version-app.json"
-GITHUB_REPO = "{GITHUB_REPO}"
-GITHUB_BRANCH = "{GITHUB_BRANCH}"
-LATEST_SHA = "{latest_sha}"
+## Configuration Firebase
 
-def download_github():
-    target = LATEST_SHA
-    zip_url = f"https://github.com/{{GITHUB_REPO}}/archive/{{target}}.zip"
-    zip_path = BASE_DIR.parent / f"{{GITHUB_REPO.split('/')[-1]}}-{{target}}.zip"
-    try:
-        urllib.request.urlretrieve(zip_url, zip_path)
-        with zipfile.ZipFile(zip_path, "r") as zip_ref:
-            zip_ref.extractall(BASE_DIR.parent)
-        extracted_dir = BASE_DIR.parent / f"{{GITHUB_REPO.split('/')[-1]}}-{{target}}"
-        time.sleep(1)  # attendre 1 seconde pour libérer les fichiers
-        if BASE_DIR.exists():
-            shutil.rmtree(BASE_DIR)
-        extracted_dir.rename(BASE_DIR)
-        zip_path.unlink()
-        return True
-    except Exception as e:
-        print("❌ Erreur téléchargement:", e)
-        return False
+### Étape 1 : Variables d'environnement
 
-def run_npm_install():
-    npm_cmds = [
-        os.path.expandvars(r"%ProgramFiles%\\nodejs\\npm.cmd"),
-        os.path.expandvars(r"%ProgramFiles(x86)%\\nodejs\\npm.cmd")
-    ]
-    npm = next((cmd for cmd in npm_cmds if Path(cmd).exists()), None)
-    if not npm:
-        print("❌ npm introuvable.")
-        return False
-    process = subprocess.run([npm, "install"], cwd=BASE_DIR, shell=True)
-    return process.returncode == 0
+1. Copiez `env.example.txt` vers `.env` :
+```bash
+copy env.example.txt .env
+```
 
-def create_shortcut():
-    vbs_path = BASE_DIR / "launcher.vbs"
-    icon_path = BASE_DIR / "icon.ico"
-    shortcut = DESKTOP_DIR / "Sroff Game Installer.lnk"
-    ps = f"""
-$WshShell = New-Object -ComObject WScript.Shell
-$Shortcut = $WshShell.CreateShortcut('{{shortcut}}')
-$Shortcut.TargetPath = '{{vbs_path}}'
-$Shortcut.WorkingDirectory = '{{vbs_path.parent}}'
-$Shortcut.IconLocation = '{{icon_path}}'
-$Shortcut.Save()
-"""
-    subprocess.run(["powershell", "-Command", ps], capture_output=True)
+2. Ouvrez le fichier `.env` et remplissez avec vos identifiants Firebase :
+   - Allez sur [Firebase Console](https://console.firebase.google.com/)
+   - Sélectionnez votre projet
+   - Allez dans Paramètres du projet > Vos applications
+   - Copiez les valeurs de configuration
 
-def update_sha_file():
-    APP_VERSION_FILE.parent.mkdir(parents=True, exist_ok=True)
-    payload = {{
-        'installed_sha': LATEST_SHA,
-        'install_date': time.time(),
-        'installation_date': time.time()
-    }}
-    with open(APP_VERSION_FILE, 'w', encoding="utf-8") as f:
-        json.dump(payload, f, indent=2)
+### Étape 2 : Règles Firestore
 
-def launch_vbs():
-    vbs_path = BASE_DIR / "launcher.vbs"
-    subprocess.Popen(["cscript", str(vbs_path)], shell=True)
+**⚠️ IMPORTANT** : L'application nécessite l'authentification pour lire les données Firestore.
 
-def self_delete():
-    try:
-        Path(__file__).unlink()
-    except: pass
+Vous avez deux options :
 
-if download_github():
-    run_npm_install()
-    create_shortcut()
-    update_sha_file()
-    launch_vbs()
-    self_delete()
-'''
-    with open(update_path, "w", encoding="utf-8") as f:
-        f.write(content)
-    return update_path
+#### Option A : Authentification (Recommandé)
+L'application affichera un écran de connexion. Les utilisateurs devront se connecter avec Google ou GitHub.
 
-# ----------------- Main -----------------
-def main():
-    local_sha = read_local_sha()
-    latest_sha = get_latest_commit_sha(GITHUB_REPO, GITHUB_BRANCH)
-    if not latest_sha:
-        print("⚠️ Impossible de récupérer le dernier commit.")
-        return
-    if local_sha == latest_sha:
-        print("✅ Application à jour, lancement...")
-        run_npm_start(BASE_DIR)
-    else:
-        print("⬆️ Nouvelle version détectée, mise à jour en cours...")
-        update_script = create_update_script(latest_sha)
-        subprocess.Popen([sys.executable, str(update_script)], shell=True)
-        # Quitter pour libérer BASE_DIR
-        sys.exit(0)
+1. Activez les providers dans Firebase Console :
+   - Authentication > Sign-in method
+   - Activez "Google" et/ou "GitHub"
 
-if __name__ == "__main__":
-    main()
+#### Option B : Lecture publique (Développement uniquement)
+Pour permettre la lecture sans authentification, modifiez vos règles Firestore :
+
+1. Utilisez le fichier `firestore.rules.installer` fourni
+2. Ou modifiez manuellement vos règles pour permettre `allow read: if true;`
+
+**⚠️ Attention** : L'option B permet à n'importe qui de lire vos données. Utilisez uniquement en développement.
+
+Voir `FIREBASE_SETUP.md` pour plus de détails.
+
+Exemple de `.env` :
+```
+FIREBASE_API_KEY=AIzaSy...
+FIREBASE_AUTH_DOMAIN=votre-projet.firebaseapp.com
+FIREBASE_PROJECT_ID=votre-projet-id
+FIREBASE_STORAGE_BUCKET=votre-projet.appspot.com
+FIREBASE_MESSAGING_SENDER_ID=123456789
+FIREBASE_APP_ID=1:123456789:web:abc123
+```
+
+## Utilisation
+
+### Mode développement
+```bash
+npm start
+```
+
+### Mode développement avec DevTools
+```bash
+npm run dev
+```
+
+## Build pour Windows
+
+Pour créer un exécutable Windows (.exe) :
+```bash
+npm run build
+```
+
+L'exécutable sera créé dans le dossier `dist/`.
+
+## Fonctionnement
+
+1. **Récupération des jeux** : L'application se connecte à Firebase Firestore pour récupérer la liste des jeux disponibles
+2. **Téléchargement** : 
+   - Pour les fichiers ZIP : téléchargement direct avec barre de progression
+   - Pour les torrents : utilisation de WebTorrent pour le téléchargement P2P
+3. **Extraction** : Les fichiers ZIP sont automatiquement extraits dans `C:\sroff-game\nomdujeux`
+4. **Détection du .exe** : L'application recherche automatiquement le fichier .exe principal
+5. **Raccourci** : Un raccourci est créé sur le bureau de l'utilisateur
+
+## Structure du projet
+
+```
+installer-app/
+├── main.js              # Processus principal Electron
+├── index.html           # Interface utilisateur
+├── config.js            # Configuration de l'application
+├── package.json         # Dépendances et scripts
+├── utils/
+│   └── shortcut.js     # Utilitaires pour créer les raccourcis Windows
+├── .env                # Variables d'environnement (à créer)
+└── README.md           # Documentation
+```
+
+
+
+## Configuration avancée
+
+Vous pouvez modifier le dossier d'installation dans `config.js` ou via la variable d'environnement `GAMES_DIR` dans votre fichier `.env`.
+
+## Dépannage
+
+### L'application ne se connecte pas à Firebase
+- Vérifiez que votre fichier `.env` contient toutes les variables nécessaires
+- Vérifiez que les règles Firestore autorisent la lecture (l'application n'utilise pas d'authentification)
+
+### Les téléchargements échouent
+- Vérifiez votre connexion internet
+- Pour les torrents, assurez-vous qu'il y a des seeders disponibles
+
+### Les raccourcis ne sont pas créés
+- Vérifiez que l'application a les permissions d'écriture sur le bureau
+- Exécutez l'application en tant qu'administrateur si nécessaire
+
+## Démarrage rapide
+
+1. Double-cliquez sur `install.bat` pour installer les dépendances
+2. Configurez votre fichier `.env` (copiez `env.example.txt` vers `.env`)
+3. Double-cliquez sur `start.bat` pour lancer l'application
+
+## Notes importantes
+
+- Les jeux sont installés dans `C:\sroff-game\` par défaut
+- Les raccourcis sont créés sur le bureau de l'utilisateur Windows
+- L'application détecte automatiquement les fichiers .exe principaux (ignore les fichiers "uninstall")
+- Les fichiers ZIP temporaires sont supprimés après extraction
+- Pour une icône personnalisée, placez un fichier `icon.ico` dans le dossier `installer-app/`
+
+## Support
+
+En cas de problème :
+1. Vérifiez que toutes les dépendances sont installées (`npm install`)
+2. Vérifiez votre fichier `.env` contient toutes les variables Firebase
+3. Vérifiez que votre connexion internet fonctionne
+4. Consultez la console (F12) pour voir les erreurs détaillées
+
