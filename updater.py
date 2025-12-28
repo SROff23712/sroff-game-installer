@@ -8,6 +8,7 @@ import subprocess
 import urllib.request
 from pathlib import Path
 import time
+import tempfile
 
 # ================== CONFIG ==================
 GITHUB_REPO = "SROff23712/sroff-game-installer"
@@ -23,7 +24,7 @@ env_path = Path(__file__).parent / ".env"
 if env_path.exists():
     with open(env_path, "r", encoding="utf-8") as f:
         for line in f:
-            if "=" in line:
+            if "=" in line and not line.startswith("#"):
                 k, v = line.strip().split("=", 1)
                 os.environ.setdefault(k, v)
 TOKEN = os.getenv("TOKEN")
@@ -65,8 +66,14 @@ def run_npm_start(base_dir):
     subprocess.Popen([npm, "start"], cwd=base_dir, shell=True)
 
 def create_update_script(latest_sha):
-    """Crée update.py dans AppData\Local\Programs"""
-    update_path = BASE_DIR.parent / "update.py"
+    """Crée update.py et update.bat dans un dossier temporaire"""
+    update_temp_dir = Path(tempfile.gettempdir()) / "sroff_update"
+    update_temp_dir.mkdir(exist_ok=True)
+    
+    update_path = update_temp_dir / "update.py"
+    bat_path = update_temp_dir / "update.bat"
+
+    # Contenu de update.py
     content = f'''#!/usr/bin/env python3
 import os, sys, shutil, subprocess, zipfile, urllib.request, json, time
 from pathlib import Path
@@ -75,7 +82,6 @@ BASE_DIR = Path(r"{BASE_DIR}")
 DESKTOP_DIR = Path(r"{DESKTOP_DIR}")
 APP_VERSION_FILE = BASE_DIR.parent / "ash-version-app.json"
 GITHUB_REPO = "{GITHUB_REPO}"
-GITHUB_BRANCH = "{GITHUB_BRANCH}"
 LATEST_SHA = "{latest_sha}"
 
 def download_github():
@@ -152,10 +158,10 @@ if download_github():
     with open(update_path, "w", encoding="utf-8") as f:
         f.write(content)
 
-    # Création du BAT pour lancer update.py
-    bat_path = BASE_DIR.parent / "update.bat"
+    # Contenu du BAT
     bat_content = f'''@echo off
-python "{update_path}"
+python "%~dp0update.py" || py "%~dp0update.py"
+exit /b
 '''
     with open(bat_path, "w", encoding="utf-8") as f:
         f.write(bat_content)
@@ -175,10 +181,9 @@ def main():
     else:
         print("⬆️ Nouvelle version détectée, mise à jour en cours...")
         bat_path = create_update_script(latest_sha)
-        # Lancer le BAT qui lui lance update.py
-        subprocess.Popen(f'cmd /c "{bat_path}"', shell=True)
-        # Quitter pour libérer BASE_DIR
-        sys.exit(0)
+        # Lancer le BAT détaché
+        subprocess.Popen(f'cmd /c "{bat_path}"', shell=True, close_fds=True)
+        sys.exit(0)  # quitter pour libérer BASE_DIR
 
 if __name__ == "__main__":
     main()
