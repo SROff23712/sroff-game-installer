@@ -7,6 +7,7 @@ import json
 import subprocess
 import urllib.request
 from pathlib import Path
+import time
 
 # ================== CONFIG ==================
 GITHUB_REPO = "SROff23712/sroff-game-installer"
@@ -86,6 +87,7 @@ def download_github():
         with zipfile.ZipFile(zip_path, "r") as zip_ref:
             zip_ref.extractall(BASE_DIR.parent)
         extracted_dir = BASE_DIR.parent / f"{{GITHUB_REPO.split('/')[-1]}}-{{target}}"
+        time.sleep(1)  # attendre 1 seconde pour libérer les fichiers
         if BASE_DIR.exists():
             shutil.rmtree(BASE_DIR)
         extracted_dir.rename(BASE_DIR)
@@ -165,6 +167,8 @@ def main():
         print("⬆️ Nouvelle version détectée, mise à jour en cours...")
         update_script = create_update_script(latest_sha)
         subprocess.Popen([sys.executable, str(update_script)], shell=True)
+        # Quitter pour libérer BASE_DIR
+        sys.exit(0)
 
 if __name__ == "__main__":
     main()
