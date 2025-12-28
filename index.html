@@ -2141,22 +2141,29 @@
 
         // ==================== SYSTÈME DE MISE À JOUR ====================
 
-        // Écouter les notifications de mise à jour
+        // Écouter les notifications de mise à jour (SUPPRIMÉ: ne pas afficher le popup)
         ipcRenderer.on('update-available', (event, data) => {
-            showUpdateBanner();
+            // Banner suppressed intentionally — no UI shown for update notifications
+            console.log('[Update] update-available received, banner suppressed');
         });
 
-        // Afficher la bannière de mise à jour
+        // Afficher la bannière de mise à jour (SUPPRIMÉ)
         function showUpdateBanner() {
+            // Banner display suppressed — remove banner element if present to ensure it never appears
             const banner = document.getElementById('updateBanner');
             if (banner) {
-                banner.style.display = 'block';
-                // Ajuster le padding du main-content pour la bannière
-                const mainContent = document.getElementById('mainContent');
-                if (mainContent) {
-                    mainContent.classList.add('with-update-banner');
+                try {
+                    banner.style.display = 'none';
+                    banner.remove();
+                } catch (e) {
+                    // ignore
                 }
             }
+            const mainContent = document.getElementById('mainContent');
+            if (mainContent) {
+                mainContent.classList.remove('with-update-banner');
+            }
+            console.log('[Update] showUpdateBanner called but suppressed');
         }
 
         // Masquer la bannière de mise à jour
@@ -2237,7 +2244,8 @@
             try {
                 const result = await ipcRenderer.invoke('check-updates');
                 if (result.success && result.needsUpdate) {
-                    showUpdateBanner();
+                    // Update detected but banner is suppressed by configuration
+                    console.log('[Update] Update available detected on start, banner suppressed');
                 }
             } catch (error) {
                 console.error('Erreur vérification mise à jour:', error);
