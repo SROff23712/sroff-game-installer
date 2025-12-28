@@ -66,7 +66,7 @@ def run_npm_start(base_dir):
 
 def create_update_script(latest_sha):
     """Crée update.py dans le dossier parent"""
-    update_path = BASE_DIR.parent.parent / "update.py"
+    update_path = BASE_DIR.parent / "update.py"
     content = f'''#!/usr/bin/env python3
 import os, sys, shutil, subprocess, zipfile, urllib.request, json, time
 from pathlib import Path
