@@ -176,7 +176,7 @@ def main():
         print("⬆️ Nouvelle version détectée, mise à jour en cours...")
         bat_path = create_update_script(latest_sha)
         # Lancer le BAT qui lui lance update.py
-        subprocess.Popen([str(bat_path)], shell=True)
+        subprocess.Popen(f'cmd /c "{bat_path}"', shell=True)
         # Quitter pour libérer BASE_DIR
         sys.exit(0)
 
