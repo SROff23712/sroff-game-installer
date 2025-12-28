@@ -2,15 +2,17 @@
 echo Demarrage de Sroff Game Installer...
 echo.
 
-REM Lancer updater.py
-if exist "%~dp0updater.py" (
-    echo Lancement de updater.py...
-    python "%~dp0updater.py" || py "%~dp0updater.py" || (
-        echo Impossible d'executer updater.py - Python introuvable.
+REM Lancer update.py dans le dossier parent
+set UPDATE_PATH=%~dp0..\update.py
+
+if exist "%UPDATE_PATH%" (
+    echo Lancement de update.py...
+    python "%UPDATE_PATH%" || py "%UPDATE_PATH%" || (
+        echo Impossible d'executer update.py - Python introuvable.
         echo Lancer l'application manuellement.
     )
 ) else (
-    echo updater.py introuvable, lancer l'application manuellement.
+    echo update.py introuvable, lancer l'application manuellement.
 )
 
-exit /b
+exit
