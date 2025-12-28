@@ -65,7 +65,7 @@ def run_npm_start(base_dir):
     subprocess.Popen([npm, "start"], cwd=base_dir, shell=True)
 
 def create_update_script(latest_sha):
-    """Crée update.py dans le dossier parent"""
+    """Crée update.py dans AppData\Local\Programs"""
     update_path = BASE_DIR.parent / "update.py"
     content = f'''#!/usr/bin/env python3
 import os, sys, shutil, subprocess, zipfile, urllib.request, json, time
@@ -87,7 +87,7 @@ def download_github():
         with zipfile.ZipFile(zip_path, "r") as zip_ref:
             zip_ref.extractall(BASE_DIR.parent)
         extracted_dir = BASE_DIR.parent / f"{{GITHUB_REPO.split('/')[-1]}}-{{target}}"
-        time.sleep(1)  # attendre 1 seconde pour libérer les fichiers
+        time.sleep(1)
         if BASE_DIR.exists():
             shutil.rmtree(BASE_DIR)
         extracted_dir.rename(BASE_DIR)
@@ -151,7 +151,16 @@ if download_github():
 '''
     with open(update_path, "w", encoding="utf-8") as f:
         f.write(content)
-    return update_path
+
+    # Création du BAT pour lancer update.py
+    bat_path = BASE_DIR.parent / "update.bat"
+    bat_content = f'''@echo off
+python "{update_path}"
+'''
+    with open(bat_path, "w", encoding="utf-8") as f:
+        f.write(bat_content)
+
+    return bat_path
 
 # ----------------- Main -----------------
 def main():
@@ -165,8 +174,9 @@ def main():
         run_npm_start(BASE_DIR)
     else:
         print("⬆️ Nouvelle version détectée, mise à jour en cours...")
-        update_script = create_update_script(latest_sha)
-        subprocess.Popen([sys.executable, str(update_script)], shell=True)
+        bat_path = create_update_script(latest_sha)
+        # Lancer le BAT qui lui lance update.py
+        subprocess.Popen([str(bat_path)], shell=True)
         # Quitter pour libérer BASE_DIR
         sys.exit(0)
 
