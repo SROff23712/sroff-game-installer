@@ -13,7 +13,7 @@ Application Electron pour télécharger et installer automatiquement les jeux de
 
 ## Prérequis
 
-- Node.js (version  16 ou supérieure)
+- Node.js (version 16 ou supérieure)
 - npm ou yarn
 - Windows 10/11
 
