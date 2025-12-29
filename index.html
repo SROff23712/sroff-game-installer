@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html lang="fr">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -12,8 +11,7 @@
             box-sizing: border-box;
         }
 
-        html,
-        body {
+        html, body {
             margin: 0;
             padding: 0;
             overflow: hidden;
@@ -98,7 +96,6 @@
                 opacity: 0;
                 transform: translateY(-30px) scale(0.8);
             }
-
             100% {
                 opacity: 1;
                 transform: translateY(0) scale(1);
@@ -106,12 +103,9 @@
         }
 
         @keyframes logoPulse {
-
-            0%,
-            100% {
+            0%, 100% {
                 transform: scale(1);
             }
-
             50% {
                 transform: scale(1.05);
             }
@@ -122,7 +116,6 @@
                 opacity: 0;
                 transform: translateY(20px);
             }
-
             100% {
                 opacity: 1;
                 transform: translateY(0);
@@ -133,11 +126,9 @@
             0% {
                 opacity: 0;
             }
-
             70% {
                 opacity: 0;
             }
-
             100% {
                 opacity: 1;
             }
@@ -147,11 +138,9 @@
             0% {
                 width: 0%;
             }
-
             50% {
                 width: 60%;
             }
-
             100% {
                 width: 100%;
             }
@@ -502,13 +491,8 @@
         }
 
         @keyframes spin {
-            0% {
-                transform: rotate(0deg);
-            }
-
-            100% {
-                transform: rotate(360deg);
-            }
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
 
         .progress-overlay {
@@ -1101,7 +1085,6 @@
                 transform: translateY(-100%);
                 opacity: 0;
             }
-
             to {
                 transform: translateY(0);
                 opacity: 1;
@@ -1122,13 +1105,8 @@
         }
 
         @keyframes rotate {
-            from {
-                transform: rotate(0deg);
-            }
-
-            to {
-                transform: rotate(360deg);
-            }
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
         }
 
         .update-banner-text {
@@ -1237,7 +1215,6 @@
         }
     </style>
 </head>
-
 <body>
     <!-- Écran de démarrage -->
     <div class="splash-screen" id="splashScreen">
@@ -1286,100 +1263,99 @@
     <!-- Interface principale -->
     <div class="main-content" id="mainContent">
         <div id="mainScreen" class="container">
-            <!-- Navigation -->
-            <div class="nav-tabs">
-                <button class="nav-tab active" onclick="showPage('games')">🎮 Jeux</button>
-                <button class="nav-tab" onclick="showPage('downloads')">📥 Téléchargements</button>
-                <button class="nav-tab" onclick="showPage('installed')">💾 Jeux installés</button>
-            </div>
+        <!-- Navigation -->
+        <div class="nav-tabs">
+            <button class="nav-tab active" onclick="showPage('games')">🎮 Jeux</button>
+            <button class="nav-tab" onclick="showPage('downloads')">📥 Téléchargements</button>
+            <button class="nav-tab" onclick="showPage('installed')">💾 Jeux installés</button>
+        </div>
 
-            <!-- Page Jeux  -->
-            <div id="gamesPage" class="page active">
-                <div class="main-layout">
-                    <!-- Sidebar Catégories -->
-                    <div class="sidebar">
-                        <div class="sidebar-title">📂 Catégories</div>
-                        <ul id="categoryList" class="category-list">
-                            <li class="category-item active" data-category="all" onclick="filterByCategory('all')">
-                                Tous les jeux
-                                <span class="count" id="count-all">0</span>
-                            </li>
-                        </ul>
+        <!-- Page Jeux -->
+        <div id="gamesPage" class="page active">
+            <div class="main-layout">
+                <!-- Sidebar Catégories -->
+                <div class="sidebar">
+                    <div class="sidebar-title">📂 Catégories</div>
+                    <ul id="categoryList" class="category-list">
+                        <li class="category-item active" data-category="all" onclick="filterByCategory('all')">
+                            Tous les jeux
+                            <span class="count" id="count-all">0</span>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Zone de contenu -->
+                <div class="content-area">
+                    <div class="search-bar">
+                        <input 
+                            type="text" 
+                            id="searchInput" 
+                            class="search-input" 
+                            placeholder="Rechercher un jeu..."
+                        />
                     </div>
 
-                    <!-- Zone de contenu -->
-                    <div class="content-area">
-                        <div class="search-bar">
-                            <input type="text" id="searchInput" class="search-input"
-                                placeholder="Rechercher un jeu..." />
-                        </div>
-
-                        <div class="games-wrapper">
-                            <div id="gamesContainer" class="games-grid">
-                                <div class="loading">
-                                    <div class="spinner"></div>
-                                    <p>Chargement des jeux...</p>
-                                </div>
+                    <div class="games-wrapper">
+                        <div id="gamesContainer" class="games-grid">
+                            <div class="loading">
+                                <div class="spinner"></div>
+                                <p>Chargement des jeux...</p>
                             </div>
                         </div>
+                    </div>
 
-                        <!-- Pagination -->
-                        <div class="pagination">
-                            <button class="pagination-btn" id="prevBtn" onclick="changePage(-1)" disabled>←
-                                Précédent</button>
-                            <span class="pagination-info" id="pageInfo">Page 1 sur 1</span>
-                            <button class="pagination-btn" id="nextBtn" onclick="changePage(1)" disabled>Suivant
-                                →</button>
-                        </div>
+                    <!-- Pagination -->
+                    <div class="pagination">
+                        <button class="pagination-btn" id="prevBtn" onclick="changePage(-1)" disabled>← Précédent</button>
+                        <span class="pagination-info" id="pageInfo">Page 1 sur 1</span>
+                        <button class="pagination-btn" id="nextBtn" onclick="changePage(1)" disabled>Suivant →</button>
                     </div>
                 </div>
             </div>
+        </div>
 
-            <!-- Page Téléchargements -->
-            <div id="downloadsPage" class="page">
-                <div style="display: flex; flex-direction: column; height: 100%; padding: 20px;">
-                    <div style="margin-bottom: 20px;">
-                        <h2 style="color: #e0e0e8; font-size: 1.5em; margin-bottom: 15px;">📥 Téléchargements en cours
-                        </h2>
-                        <div id="activeDownloadsContainer" class="downloads-list"
-                            style="max-height: 40vh; overflow-y: auto; margin-bottom: 20px;">
-                            <div class="empty-downloads">
-                                <div class="empty-downloads-icon">📥</div>
-                                <p>Aucun téléchargement en cours</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div style="flex: 1; overflow: hidden; display: flex; flex-direction: column;">
-                        <h2 style="color: #e0e0e8; font-size: 1.5em; margin-bottom: 15px; flex-shrink: 0;">📋 Historique
-                        </h2>
-                        <div id="downloadsContainer" class="downloads-list" style="flex: 1; overflow-y: auto;">
-                            <div class="empty-downloads">
-                                <div class="empty-downloads-icon">📋</div>
-                                <p>Aucun téléchargement dans l'historique</p>
-                            </div>
+        <!-- Page Téléchargements -->
+        <div id="downloadsPage" class="page">
+            <div style="display: flex; flex-direction: column; height: 100%; padding: 20px;">
+                <div style="margin-bottom: 20px;">
+                    <h2 style="color: #e0e0e8; font-size: 1.5em; margin-bottom: 15px;">📥 Téléchargements en cours</h2>
+                    <div id="activeDownloadsContainer" class="downloads-list" style="max-height: 40vh; overflow-y: auto; margin-bottom: 20px;">
+                        <div class="empty-downloads">
+                            <div class="empty-downloads-icon">📥</div>
+                            <p>Aucun téléchargement en cours</p>
                         </div>
                     </div>
                 </div>
-            </div>
-
-            <!-- Page Jeux installés -->
-            <div id="installedPage" class="page">
-                <div style="display: flex; flex-direction: column; height: 100%; padding: 20px;">
-                    <h2 style="color: #e0e0e8; font-size: 1.5em; margin-bottom: 20px;">💾 Jeux installés</h2>
-                    <div id="installedGamesContainer" class="games-grid" style="flex: 1; overflow-y: auto;">
-                        <div class="loading">
-                            <div class="spinner"></div>
-                            <p>Chargement des jeux installés...</p>
+                <div style="flex: 1; overflow: hidden; display: flex; flex-direction: column;">
+                    <h2 style="color: #e0e0e8; font-size: 1.5em; margin-bottom: 15px; flex-shrink: 0;">📋 Historique</h2>
+                    <div id="downloadsContainer" class="downloads-list" style="flex: 1; overflow-y: auto;">
+                        <div class="empty-downloads">
+                            <div class="empty-downloads-icon">📋</div>
+                            <p>Aucun téléchargement dans l'historique</p>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
+
+        <!-- Page Jeux installés -->
+        <div id="installedPage" class="page">
+            <div style="display: flex; flex-direction: column; height: 100%; padding: 20px;">
+                <h2 style="color: #e0e0e8; font-size: 1.5em; margin-bottom: 20px;">💾 Jeux installés</h2>
+                <div id="installedGamesContainer" class="games-grid" style="flex: 1; overflow-y: auto;">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <p>Chargement des jeux installés...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
     </div>
 
     <script>
         const { ipcRenderer } = require('electron');
-
+        
         // Gestion de la barre de titre personnalisée
         document.getElementById('minimizeBtn').addEventListener('click', () => {
             ipcRenderer.send('window-minimize');
@@ -1407,10 +1383,10 @@
 
         // Écouter les changements de taille de fenêtre
         window.addEventListener('resize', updateMaximizeButton);
-
+        
         // Initialiser le bouton maximize au chargement
         updateMaximizeButton();
-
+        
         let games = [];
         let filteredGames = [];
         let currentUser = null;
@@ -1427,18 +1403,18 @@
             setTimeout(() => {
                 const splashScreen = document.getElementById('splashScreen');
                 const mainContent = document.getElementById('mainContent');
-
+                
                 if (splashScreen && mainContent) {
                     splashScreen.classList.add('hidden');
                     mainContent.classList.add('visible');
-
+                    
                     // Supprimer l'écran de démarrage après l'animation
                     setTimeout(() => {
                         splashScreen.style.display = 'none';
                     }, 500);
                 }
             }, 2500);
-
+            
             // Charger les jeux en arrière-plan
             loadGames();
         }
@@ -1450,18 +1426,18 @@
                 if (loadingElement) {
                     loadingElement.style.display = 'block';
                 }
-
+                
                 const result = await ipcRenderer.invoke('get-games');
                 if (result.success) {
                     games = result.games.reverse(); // Inverser l'ordre : du plus récent au plus vieux
-
+                    
                     // Réappliquer les filtres (catégorie et recherche)
                     applyFilters();
-
+                    
                     extractCategories();
                     renderCategories();
                     renderGames();
-
+                    
                     if (loadingElement) {
                         loadingElement.style.display = 'none';
                     }
@@ -1485,23 +1461,23 @@
             // Filtrer d'abord par catégorie
             let baseGames = games;
             if (currentCategory !== 'all') {
-                baseGames = games.filter(game =>
+                baseGames = games.filter(game => 
                     game.genres && Array.isArray(game.genres) && game.genres.includes(currentCategory)
                 );
             }
-
+            
             // Puis appliquer la recherche si elle existe
             const searchInput = document.getElementById('searchInput');
             const searchQuery = searchInput ? searchInput.value.toLowerCase() : '';
             if (searchQuery) {
-                filteredGames = baseGames.filter(game =>
+                filteredGames = baseGames.filter(game => 
                     game.title.toLowerCase().includes(searchQuery) ||
                     (game.description && game.description.toLowerCase().includes(searchQuery))
                 );
             } else {
                 filteredGames = baseGames;
             }
-
+            
             // Réinitialiser à la page 1
             currentPage = 1;
         }
@@ -1526,17 +1502,17 @@
             const categoryList = document.getElementById('categoryList');
             const allCount = games.length;
             document.getElementById('count-all').textContent = allCount;
-
+            
             // Supprimer toutes les catégories existantes (sauf "Tous les jeux")
             const existingCategories = categoryList.querySelectorAll('.category-item:not([data-category="all"])');
             existingCategories.forEach(item => item.remove());
-
+            
             // Ajouter les catégories
             categories.forEach(category => {
-                const count = games.filter(game =>
+                const count = games.filter(game => 
                     game.genres && Array.isArray(game.genres) && game.genres.includes(category)
                 ).length;
-
+                
                 const li = document.createElement('li');
                 li.className = 'category-item';
                 li.setAttribute('data-category', category);
@@ -1550,31 +1526,31 @@
         function filterByCategory(category) {
             currentCategory = category;
             currentPage = 1; // Réinitialiser à la page 1
-
+            
             // Mettre à jour l'état actif
             document.querySelectorAll('.category-item').forEach(item => {
                 item.classList.remove('active');
             });
             document.querySelector(`[data-category="${category}"]`).classList.add('active');
-
+            
             // Filtrer les jeux
             if (category === 'all') {
                 filteredGames = games;
             } else {
-                filteredGames = games.filter(game =>
+                filteredGames = games.filter(game => 
                     game.genres && Array.isArray(game.genres) && game.genres.includes(category)
                 );
             }
-
+            
             // Appliquer aussi la recherche si elle existe
             const searchQuery = document.getElementById('searchInput').value.toLowerCase();
             if (searchQuery) {
-                filteredGames = filteredGames.filter(game =>
+                filteredGames = filteredGames.filter(game => 
                     game.title.toLowerCase().includes(searchQuery) ||
                     (game.description && game.description.toLowerCase().includes(searchQuery))
                 );
             }
-
+            
             renderGames();
         }
 
@@ -1582,7 +1558,7 @@
         function changePage(direction) {
             const totalPages = Math.ceil(filteredGames.length / gamesPerPage);
             const newPage = currentPage + direction;
-
+            
             if (newPage >= 1 && newPage <= totalPages) {
                 currentPage = newPage;
                 renderGames();
@@ -1592,7 +1568,7 @@
         // Afficher les jeux avec pagination
         async function renderGames() {
             const container = document.getElementById('gamesContainer');
-
+            
             if (filteredGames.length === 0) {
                 container.innerHTML = '<div class="loading"><p>Aucun jeu trouvé</p></div>';
                 updatePagination();
@@ -1656,7 +1632,7 @@
                     </div>
                 `;
             }).join('');
-
+            
             updatePagination();
         }
 
@@ -1666,7 +1642,7 @@
             const pageInfo = document.getElementById('pageInfo');
             const prevBtn = document.getElementById('prevBtn');
             const nextBtn = document.getElementById('nextBtn');
-
+            
             pageInfo.textContent = `Page ${currentPage} sur ${totalPages} (${filteredGames.length} jeux)`;
             prevBtn.disabled = currentPage <= 1;
             nextBtn.disabled = currentPage >= totalPages;
@@ -1689,7 +1665,7 @@
 
             try {
                 const result = await ipcRenderer.invoke('install-game', game);
-
+                
                 if (result.success && result.downloadId) {
                     // Basculer vers la page de téléchargements
                     showPage('downloads');
@@ -1708,7 +1684,7 @@
         async function launchGame(gameTitle) {
             try {
                 const result = await ipcRenderer.invoke('launch-game', gameTitle);
-
+                
                 if (result.success) {
                     console.log(`✅ Jeu lancé: ${gameTitle}`);
                 } else {
@@ -1780,7 +1756,7 @@
 
         function renderInstalledGames(installedGames) {
             const container = document.getElementById('installedGamesContainer');
-
+            
             if (installedGames.length === 0) {
                 container.classList.add('empty-state');
                 container.innerHTML = `
@@ -1791,7 +1767,7 @@
                 `;
                 return;
             }
-
+            
             container.classList.remove('empty-state');
 
             container.innerHTML = installedGames.map(installedGame => {
@@ -1799,7 +1775,7 @@
                 const gameInfo = games.find(g => g.title === installedGame.title);
                 const imageUrl = gameInfo?.imageUrl || 'https://via.placeholder.com/400x300';
                 const description = gameInfo?.description || 'Aucune description disponible';
-
+                
                 return `
                     <div class="game-card">
                         <img src="${imageUrl}" 
@@ -1841,7 +1817,7 @@
 
             try {
                 const result = await ipcRenderer.invoke('uninstall-game', gameTitle);
-
+                
                 if (result.success) {
                     alert(`✅ "${gameTitle}" a été désinstallé avec succès`);
                     loadInstalledGames();
@@ -1860,18 +1836,18 @@
             document.querySelectorAll('.page').forEach(page => {
                 page.classList.remove('active');
             });
-
+            
             // Masquer tous les onglets
             document.querySelectorAll('.nav-tab').forEach(tab => {
                 tab.classList.remove('active');
             });
-
+            
             // Afficher la page demandée
             const page = document.getElementById(pageName + 'Page');
             if (page) {
                 page.classList.add('active');
             }
-
+            
             // Activer l'onglet correspondant
             const tabs = document.querySelectorAll('.nav-tab');
             tabs.forEach(tab => {
@@ -1884,14 +1860,14 @@
                     tab.classList.add('active');
                 }
             });
-
+            
             // Charger les données spécifiques à la page
             if (pageName === 'downloads') {
                 loadDownloads();
             } else if (pageName === 'installed') {
                 loadInstalledGames();
             }
-
+            
         }
 
         // Charger la liste des téléchargements
@@ -1912,7 +1888,7 @@
         // Afficher les téléchargements actifs
         function renderActiveDownloads(downloads) {
             const container = document.getElementById('activeDownloadsContainer');
-
+            
             if (downloads.length === 0) {
                 container.innerHTML = `
                     <div class="empty-downloads">
@@ -1928,7 +1904,7 @@
                 const progress = download.progress || 0;
                 const message = download.message || getStatusMessage(download.status);
                 const canCancel = download.status !== 'completed' && download.status !== 'error' && download.status !== 'cancelled';
-
+                
                 return `
                     <div class="download-item" data-download-id="${download.id}">
                         <div class="download-header">
@@ -1954,7 +1930,7 @@
         // Afficher l'historique des téléchargements
         function renderDownloadHistory(history) {
             const container = document.getElementById('downloadsContainer');
-
+            
             if (history.length === 0) {
                 container.innerHTML = `
                     <div class="empty-downloads">
@@ -1970,7 +1946,7 @@
                 const progress = download.progress || 100;
                 const message = download.message || getStatusMessage(download.status);
                 const endTime = download.endTime ? new Date(download.endTime).toLocaleString('fr-FR') : '';
-
+                
                 return `
                     <div class="download-item" data-download-id="${download.id}">
                         <button class="download-close-btn" onclick="removeFromHistory('${download.id}')" title="Supprimer de l'historique">×</button>
@@ -2030,13 +2006,13 @@
         // Écouter les mises à jour de progression
         ipcRenderer.on('download-progress', (event, data) => {
             if (!data.id) return;
-
+            
             // Mettre à jour la Map
             activeDownloads.set(data.id, {
                 ...activeDownloads.get(data.id),
                 ...data
             });
-
+            
             // Mettre à jour l'affichage
             updateDownloadItem(data.id, data);
         });
@@ -2096,21 +2072,21 @@
                 loadDownloads();
                 return;
             }
-
+            
             const progressBar = item.querySelector('.download-progress-bar');
             const statusBadge = item.querySelector('.download-status');
             const message = item.querySelector('.download-message');
-
+            
             if (progressBar && data.progress !== undefined) {
                 progressBar.style.width = data.progress + '%';
                 progressBar.textContent = data.progress + '%';
             }
-
+            
             if (statusBadge && data.status) {
                 statusBadge.className = `download-status ${data.status}`;
                 statusBadge.textContent = getStatusText(data.status);
             }
-
+            
             if (message) {
                 message.textContent = data.message || getStatusMessage(data.status);
             }
@@ -2141,29 +2117,22 @@
 
         // ==================== SYSTÈME DE MISE À JOUR ====================
 
-        // Écouter les notifications de mise à jour (SUPPRIMÉ: ne pas afficher le popup)
+        // Écouter les notifications de mise à jour
         ipcRenderer.on('update-available', (event, data) => {
-            // Banner suppressed intentionally — no UI shown for update notifications
-            console.log('[Update] update-available received, banner suppressed');
+            showUpdateBanner();
         });
 
-        // Afficher la bannière de mise à jour (SUPPRIMÉ)
+        // Afficher la bannière de mise à jour
         function showUpdateBanner() {
-            // Banner display suppressed — remove banner element if present to ensure it never appears
             const banner = document.getElementById('updateBanner');
             if (banner) {
-                try {
-                    banner.style.display = 'none';
-                    banner.remove();
-                } catch (e) {
-                    // ignore
+                banner.style.display = 'block';
+                // Ajuster le padding du main-content pour la bannière
+                const mainContent = document.getElementById('mainContent');
+                if (mainContent) {
+                    mainContent.classList.add('with-update-banner');
                 }
             }
-            const mainContent = document.getElementById('mainContent');
-            if (mainContent) {
-                mainContent.classList.remove('with-update-banner');
-            }
-            console.log('[Update] showUpdateBanner called but suppressed');
         }
 
         // Masquer la bannière de mise à jour
@@ -2194,7 +2163,7 @@
 
             try {
                 const result = await ipcRenderer.invoke('perform-update');
-
+                
                 if (result.success) {
                     updateProgress(100, 'Mise à jour terminée ! Redémarrage...');
                     setTimeout(() => {
@@ -2244,8 +2213,7 @@
             try {
                 const result = await ipcRenderer.invoke('check-updates');
                 if (result.success && result.needsUpdate) {
-                    // Update detected but banner is suppressed by configuration
-                    console.log('[Update] Update available detected on start, banner suppressed');
+                    showUpdateBanner();
                 }
             } catch (error) {
                 console.error('Erreur vérification mise à jour:', error);
@@ -2263,9 +2231,8 @@
             setTimeout(checkForUpdatesOnStart, 3000);
         });
 
-        //Initialiser l'application
+        // Initialiser l'application
         init();
     </script>
 </body>
-
 </html>

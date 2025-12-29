@@ -1,189 +1,299 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""
+Script de mise à jour automatique pour Sroff Game Installer
+Vérifie s'il y a eu de nouveaux commits depuis la dernière installation
+et réinstalle si nécessaire
+"""
+
 import os
 import sys
 import json
-import subprocess
+import zipfile
+import shutil
 import urllib.request
 from pathlib import Path
+import subprocess
 import time
-import tempfile
+from datetime import datetime
 
 # ================== CONFIG ==================
+
 GITHUB_REPO = "SROff23712/sroff-game-installer"
-GITHUB_BRANCH = "master"
+GITHUB_BRANCH = "main"
 
 BASE_DIR = Path(os.path.expanduser("~")) / "AppData" / "Local" / "Programs" / "Sroff Game Installer"
-APP_VERSION_FILE = BASE_DIR.parent / "ash-version-app.json"
 DESKTOP_DIR = Path(os.path.expanduser("~")) / "Desktop"
+STATE_FILE = BASE_DIR.parent / "sroff-installer-state.json"
+
+ENV_CONTENT = """# Configuration Firebase
+
+FIREBASE_API_KEY=AIzaSyCfOHNKbsuVR6wwDZGEdtTtmrR048hYzYY
+FIREBASE_AUTH_DOMAIN=sroff-crack.firebaseapp.com
+FIREBASE_PROJECT_ID=sroff-crack
+FIREBASE_STORAGE_BUCKET=sroff-crack.firebasestorage.app
+FIREBASE_MESSAGING_SENDER_ID=332063357062
+FIREBASE_APP_ID=1:332063357062:web:5de7e4ae3b86999faa3907
+
+GITHUB_TOKEN=99ftjH9MDsOkHNwiwqXc1J7IjO0isD29kiDT
+"""
+
 # ============================================
 
-# ----------------- Charger le TOKEN depuis .env -----------------
-env_path = Path(__file__).parent / ".env"
-if env_path.exists():
-    with open(env_path, "r", encoding="utf-8") as f:
-        for line in f:
-            if "=" in line and not line.startswith("#"):
-                k, v = line.strip().split("=", 1)
-                os.environ.setdefault(k, v)
-TOKEN = os.getenv("TOKEN")
-
-# ----------------- Fonctions -----------------
-def get_latest_commit_sha(repo, branch):
-    """Récupère le dernier SHA d’un commit via l’API GitHub"""
+def get_latest_commit_date(repo, branch):
+    """Récupère la date du dernier commit depuis GitHub API"""
     try:
         api_url = f"https://api.github.com/repos/{repo}/commits/{branch}"
         req = urllib.request.Request(api_url)
-        req.add_header("User-Agent", "Sroff-Updater")
-        if TOKEN:
-            req.add_header("Authorization", f"token {TOKEN}")
+        req.add_header('User-Agent', 'Sroff-Updater')
+        
         with urllib.request.urlopen(req, timeout=10) as response:
             data = json.loads(response.read().decode())
-            return data["sha"]
+            commit_date = data['commit']['committer']['date']
+            commit_sha = data['sha']
+            
+            # Convertir en timestamp
+            dt = datetime.fromisoformat(commit_date.replace('Z', '+00:00'))
+            return dt.timestamp(), commit_sha
     except Exception as e:
-        print(f"⚠️ Erreur récupération dernier commit : {e}")
-        return None
+        print(f"⚠️ Erreur lors de la récupération du dernier commit : {e}")
+        return None, None
 
-def read_local_sha():
+
+def load_installation_state():
+    """Charge l'état de la dernière installation"""
+    if STATE_FILE.exists():
+        try:
+            with open(STATE_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"⚠️ Erreur lecture état : {e}")
+    return None
+
+
+def save_installation_state(commit_sha, commit_date):
+    """Sauvegarde l'état de l'installation"""
     try:
-        with open(APP_VERSION_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            return data.get("installed_sha")
-    except:
-        return None
+        STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        state = {
+            'last_commit_sha': commit_sha,
+            'last_commit_date': commit_date,
+            'installation_date': time.time()
+        }
+        with open(STATE_FILE, 'w', encoding='utf-8') as f:
+            json.dump(state, f, indent=2)
+        print(f"✅ État sauvegardé : {STATE_FILE}")
+    except Exception as e:
+        print(f"⚠️ Erreur sauvegarde état : {e}")
 
-def run_npm_start(base_dir):
-    """Lance npm start"""
-    npm_cmds = [
+
+def download_github_repo(repo, branch, output_dir):
+    """Télécharge et extrait le dépôt GitHub"""
+    print(f"📥 Téléchargement du dépôt {repo}...")
+
+    zip_url = f"https://github.com/{repo}/archive/refs/heads/{branch}.zip?ts={int(time.time())}"
+    zip_path = output_dir.parent / f"{repo.split('/')[-1]}-{branch}.zip"
+
+    try:
+        output_dir.parent.mkdir(parents=True, exist_ok=True)
+
+        urllib.request.urlretrieve(zip_url, zip_path)
+
+        with zipfile.ZipFile(zip_path, "r") as zip_ref:
+            zip_ref.extractall(output_dir.parent)
+
+        extracted_dir = output_dir.parent / f"{repo.split('/')[-1]}-{branch}"
+
+        if output_dir.exists():
+            shutil.rmtree(output_dir)
+
+        extracted_dir.rename(output_dir)
+        zip_path.unlink()
+
+        print(f"✅ Dépôt installé dans : {output_dir}")
+        return True
+
+    except Exception as e:
+        print(f"❌ Erreur téléchargement : {e}")
+        return False
+
+
+def create_env(path):
+    """Crée le fichier .env"""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(ENV_CONTENT)
+    print(f"✅ .env créé : {path}")
+
+
+def find_npm():
+    """Trouve npm sur Windows"""
+    paths = [
         os.path.expandvars(r"%ProgramFiles%\nodejs\npm.cmd"),
         os.path.expandvars(r"%ProgramFiles(x86)%\nodejs\npm.cmd")
     ]
-    npm = next((cmd for cmd in npm_cmds if Path(cmd).exists()), None)
+    for p in paths:
+        if os.path.exists(p):
+            return p
+    return None
+
+
+def run_npm_install(base_dir):
+    """Exécute npm install"""
+    print("\n📦 Installation des dépendances (npm install)...")
+
+    npm = find_npm()
     if not npm:
         print("❌ npm introuvable. Installe Node.js avant de lancer l'app.")
-        return
-    subprocess.Popen([npm, "start"], cwd=base_dir, shell=True)
+        return False
 
-def create_update_script(latest_sha):
-    """Crée update.py et update.bat dans un dossier temporaire"""
-    update_temp_dir = Path(tempfile.gettempdir()) / "sroff_update"
-    update_temp_dir.mkdir(exist_ok=True)
-    
-    update_path = update_temp_dir / "update.py"
-    bat_path = update_temp_dir / "update.bat"
-
-    # Contenu de update.py
-    content = f'''#!/usr/bin/env python3
-import os, sys, shutil, subprocess, zipfile, urllib.request, json, time
-from pathlib import Path
-
-BASE_DIR = Path(r"{BASE_DIR}")
-DESKTOP_DIR = Path(r"{DESKTOP_DIR}")
-APP_VERSION_FILE = BASE_DIR.parent / "ash-version-app.json"
-GITHUB_REPO = "{GITHUB_REPO}"
-LATEST_SHA = "{latest_sha}"
-
-def download_github():
-    target = LATEST_SHA
-    zip_url = f"https://github.com/{{GITHUB_REPO}}/archive/{{target}}.zip"
-    zip_path = BASE_DIR.parent / f"{{GITHUB_REPO.split('/')[-1]}}-{{target}}.zip"
     try:
-        urllib.request.urlretrieve(zip_url, zip_path)
-        with zipfile.ZipFile(zip_path, "r") as zip_ref:
-            zip_ref.extractall(BASE_DIR.parent)
-        extracted_dir = BASE_DIR.parent / f"{{GITHUB_REPO.split('/')[-1]}}-{{target}}"
-        time.sleep(1)
-        if BASE_DIR.exists():
-            shutil.rmtree(BASE_DIR)
-        extracted_dir.rename(BASE_DIR)
-        zip_path.unlink()
-        return True
+        process = subprocess.run(
+            [npm, "install"],
+            cwd=base_dir,
+            shell=True
+        )
+
+        if process.returncode == 0:
+            print("✅ npm install terminé avec succès")
+            return True
+        else:
+            print("❌ Erreur pendant npm install")
+            return False
+
     except Exception as e:
-        print("❌ Erreur téléchargement:", e)
+        print(f"❌ Erreur npm install : {e}")
         return False
 
-def run_npm_install():
-    npm_cmds = [
-        os.path.expandvars(r"%ProgramFiles%\\nodejs\\npm.cmd"),
-        os.path.expandvars(r"%ProgramFiles(x86)%\\nodejs\\npm.cmd")
-    ]
-    npm = next((cmd for cmd in npm_cmds if Path(cmd).exists()), None)
-    if not npm:
-        print("❌ npm introuvable.")
-        return False
-    process = subprocess.run([npm, "install"], cwd=BASE_DIR, shell=True)
-    return process.returncode == 0
 
-def create_shortcut():
-    vbs_path = BASE_DIR / "launcher.vbs"
-    icon_path = BASE_DIR / "icon.ico"
-    shortcut = DESKTOP_DIR / "Sroff Game Installer.lnk"
-    ps = f"""
-$WshShell = New-Object -ComObject WScript.Shell
-$Shortcut = $WshShell.CreateShortcut('{{shortcut}}')
-$Shortcut.TargetPath = '{{vbs_path}}'
-$Shortcut.WorkingDirectory = '{{vbs_path.parent}}'
-$Shortcut.IconLocation = '{{icon_path}}'
-$Shortcut.Save()
+def create_launcher_vbs(base_dir):
+    """Crée le launcher VBS"""
+    vbs_path = base_dir / "launcher.vbs"
+    icon_path = base_dir / "icon.ico"
+    base_dir_escaped = str(base_dir).replace("\\", "\\\\")
+
+    content = f"""Set shell = CreateObject("WScript.Shell")
+Set fso = CreateObject("Scripting.FileSystemObject")
+
+shell.CurrentDirectory = "{base_dir_escaped}"
+
+npm = shell.ExpandEnvironmentStrings("%ProgramFiles%\\nodejs\\npm.cmd")
+If Not fso.FileExists(npm) Then
+    npm = shell.ExpandEnvironmentStrings("%ProgramFiles(x86)%\\nodejs\\npm.cmd")
+End If
+
+If fso.FileExists(npm) Then
+    ' 0 = fenêtre cachée
+    shell.Run Chr(34) & npm & Chr(34) & " start", 0, False
+Else
+    MsgBox "Node.js n'est pas installé.", vbCritical, "Erreur"
+End If
 """
-    subprocess.run(["powershell", "-Command", ps], capture_output=True)
 
-def update_sha_file():
-    APP_VERSION_FILE.parent.mkdir(parents=True, exist_ok=True)
-    payload = {{
-        'installed_sha': LATEST_SHA,
-        'install_date': time.time(),
-        'installation_date': time.time()
-    }}
-    with open(APP_VERSION_FILE, 'w', encoding="utf-8") as f:
-        json.dump(payload, f, indent=2)
-
-def launch_vbs():
-    vbs_path = BASE_DIR / "launcher.vbs"
-    subprocess.Popen(["cscript", str(vbs_path)], shell=True)
-
-def self_delete():
-    try:
-        Path(__file__).unlink()
-    except: pass
-
-if download_github():
-    run_npm_install()
-    create_shortcut()
-    update_sha_file()
-    launch_vbs()
-    self_delete()
-'''
-    with open(update_path, "w", encoding="utf-8") as f:
+    with open(vbs_path, "w", encoding="utf-8") as f:
         f.write(content)
 
-    # Contenu du BAT
-    bat_content = f'''@echo off
-python "%~dp0update.py" || py "%~dp0update.py"
-exit /b
-'''
-    with open(bat_path, "w", encoding="utf-8") as f:
-        f.write(bat_content)
+    print(f"✅ launcher.vbs créé : {vbs_path}")
+    return vbs_path, icon_path
 
-    return bat_path
 
-# ----------------- Main -----------------
-def main():
-    local_sha = read_local_sha()
-    latest_sha = get_latest_commit_sha(GITHUB_REPO, GITHUB_BRANCH)
-    if not latest_sha:
-        print("⚠️ Impossible de récupérer le dernier commit.")
-        return
-    if local_sha == latest_sha:
-        print("✅ Application à jour, lancement...")
-        run_npm_start(BASE_DIR)
+def create_desktop_shortcut(target, name, icon):
+    """Crée un raccourci sur le bureau"""
+    shortcut = DESKTOP_DIR / f"{name}.lnk"
+
+    ps = f"""
+$WshShell = New-Object -ComObject WScript.Shell
+$Shortcut = $WshShell.CreateShortcut("{shortcut}")
+$Shortcut.TargetPath = "{target}"
+$Shortcut.WorkingDirectory = "{target.parent}"
+$Shortcut.IconLocation = "{icon}"
+$Shortcut.Save()
+"""
+
+    subprocess.run(["powershell", "-Command", ps], capture_output=True)
+    print("✅ Raccourci créé sur le bureau")
+
+
+def check_and_update():
+    """Vérifie et met à jour si nécessaire"""
+    print("=" * 60)
+    print("🔄 Vérification des mises à jour")
+    print("=" * 60)
+
+    # Récupérer le dernier commit
+    latest_timestamp, latest_sha = get_latest_commit_date(GITHUB_REPO, GITHUB_BRANCH)
+    if not latest_timestamp or not latest_sha:
+        print("❌ Impossible de vérifier les mises à jour")
+        return False
+
+    print(f"📅 Dernier commit GitHub : {datetime.fromtimestamp(latest_timestamp).strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"🔑 SHA : {latest_sha[:8]}...")
+
+    # Charger l'état de l'installation
+    state = load_installation_state()
+    
+    if state and state.get('last_commit_sha') == latest_sha:
+        print("\n✅ L'application est à jour !")
+        print(f"📅 Dernière installation : {datetime.fromtimestamp(state.get('installation_date', 0)).strftime('%Y-%m-%d %H:%M:%S')}")
+        return False
+
+    if state:
+        print(f"\n📅 Dernière installation : {datetime.fromtimestamp(state.get('installation_date', 0)).strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"🔑 SHA installé : {state.get('last_commit_sha', 'N/A')[:8]}...")
+        print("\n🆕 Nouvelle version détectée !")
     else:
-        print("⬆️ Nouvelle version détectée, mise à jour en cours...")
-        bat_path = create_update_script(latest_sha)
-        # Lancer le BAT détaché
-        subprocess.Popen(f'cmd /c "{bat_path}"', shell=True, close_fds=True)
-        sys.exit(0)  # quitter pour libérer BASE_DIR
+        print("\n📦 Première installation détectée")
+
+    # Supprimer l'ancienne installation
+    if BASE_DIR.exists():
+        print(f"\n🗑️ Suppression de l'ancienne installation : {BASE_DIR}")
+        try:
+            shutil.rmtree(BASE_DIR)
+            print("✅ Ancienne installation supprimée")
+        except Exception as e:
+            print(f"⚠️ Erreur lors de la suppression : {e}")
+            print("⚠️ Tentative de réinstallation quand même...")
+
+    # Réinstaller
+    print("\n📥 Installation de la nouvelle version...")
+    if not download_github_repo(GITHUB_REPO, GITHUB_BRANCH, BASE_DIR):
+        return False
+
+    print("\n📝 Création des fichiers .env...")
+    create_env(BASE_DIR / ".env")
+    create_env(BASE_DIR / "test" / ".env")
+
+    if not run_npm_install(BASE_DIR):
+        print("⚠️ Installation terminée MAIS sans dépendances npm")
+        print("👉 Lance npm install manuellement si besoin")
+
+    print("\n🔧 Création du launcher...")
+    vbs_path, icon_path = create_launcher_vbs(BASE_DIR)
+
+    print("\n🔗 Création du raccourci...")
+    create_desktop_shortcut(vbs_path, "Sroff Game Installer", icon_path)
+
+    # Sauvegarder l'état
+    save_installation_state(latest_sha, latest_timestamp)
+
+    print("\n" + "=" * 60)
+    print("✅ MISE À JOUR TERMINÉE")
+    print(f"📁 Dossier : {BASE_DIR}")
+    print("=" * 60)
+
+    return True
+
 
 if __name__ == "__main__":
-    main()
+    try:
+        sys.exit(0 if check_and_update() else 0)  # Retourne 0 dans tous les cas (à jour ou mis à jour)
+    except KeyboardInterrupt:
+        print("\n❌ Mise à jour annulée")
+        sys.exit(1)
+    except Exception as e:
+        print(f"\n❌ Erreur : {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+
