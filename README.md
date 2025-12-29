@@ -158,6 +158,7 @@ Vous pouvez modifier le dossier d'installation dans `config.js` ou via la variab
 
 ## Support
 
+
 En cas de problème :
 1. Vérifiez que toutes les dépendances sont installées (`npm install`)
 2. Vérifiez votre fichier `.env` contient toutes les variables Firebase
