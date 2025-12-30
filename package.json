@@ -8,7 +8,11 @@
     "build": "electron-builder",
     "dev": "electron . --dev"
   },
-  "keywords": ["game", "installer", "electron"],
+  "keywords": [
+    "game",
+    "installer",
+    "electron"
+  ],
   "author": "",
   "license": "MIT",
   "dependencies": {
@@ -54,7 +58,9 @@
       {
         "from": "test/python-embedded",
         "to": "python-embedded",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       },
       {
         "from": "test/games_updated.json",
@@ -63,9 +69,10 @@
       {
         "from": "python",
         "to": "python",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       }
     ]
   }
 }
-

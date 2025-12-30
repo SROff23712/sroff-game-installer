@@ -87,14 +87,14 @@ function getPythonExecutable() {
     console.log('[Python] ✅ Utilisation de Python Embedded bundlé');
     return bundledPython;
   }
-  
+
   // Option 2: Python en développement (depuis le dossier du projet)
   const devPython = path.join(__dirname, 'test', 'python-embedded', 'python.exe');
   if (fs.existsSync(devPython)) {
     console.log('[Python] ✅ Utilisation de Python Embedded dev');
     return devPython;
   }
-  
+
   // Option 3: Python système (PATH)
   console.log('[Python] ⚠️ Utilisation de Python système');
   return 'python';
@@ -105,18 +105,30 @@ console.log('[Python] Exécutable Python utilisé:', pythonExe);
 
 // Fonction pour obtenir le chemin du script Python
 function getPythonScriptPath(scriptName) {
-  // En développement
+  // En développement - chercher dans python/
   const devPath = path.join(__dirname, 'python', scriptName);
   if (fs.existsSync(devPath)) {
     return devPath;
   }
-  
-  // En production (bundlé)
+
+  // En développement - chercher à la racine (pour gofile-downloader.py)
+  const devRootPath = path.join(__dirname, scriptName);
+  if (fs.existsSync(devRootPath)) {
+    return devRootPath;
+  }
+
+  // En production (bundlé) - chercher dans python/
   const bundledPath = path.join(process.resourcesPath || '', 'python', scriptName);
   if (fs.existsSync(bundledPath)) {
     return bundledPath;
   }
-  
+
+  // En production (bundlé) - chercher à la racine
+  const bundledRootPath = path.join(process.resourcesPath || '', scriptName);
+  if (fs.existsSync(bundledRootPath)) {
+    return bundledRootPath;
+  }
+
   throw new Error(`Script Python introuvable: ${scriptName}`);
 }
 
@@ -126,12 +138,12 @@ async function getGamesFromGitHub() {
   try {
     console.log('Récupération des jeux depuis GitHub...');
     console.log('URL:', GAMES_URL);
-    
+
     const headers = {
       'Accept': 'application/vnd.github.v3.raw',
       'User-Agent': 'SroffGameInstaller-Electron'
     };
-    
+
     // Ajouter le token si disponible
     if (GITHUB_TOKEN) {
       headers['Authorization'] = `token ${GITHUB_TOKEN}`;
@@ -139,18 +151,18 @@ async function getGamesFromGitHub() {
     } else {
       console.log('Aucun token GitHub, tentative sans authentification');
     }
-    
+
     const response = await axios.get(GAMES_URL, {
       headers: headers,
       timeout: 30000
     });
-    
+
     console.log('Jeux récupérés avec succès depuis GitHub:', response.data.length, 'jeux');
     return response.data;
   } catch (error) {
     console.error('Erreur récupération jeux GitHub:', error.message);
     console.log('Tentative de fallback vers le fichier local...');
-    
+
     // Fallback: utiliser le fichier local s'il existe
     const localGamesPath = config.LOCAL_GAMES_PATH || path.join(__dirname, 'test', 'games_updated.json');
     if (fs.existsSync(localGamesPath)) {
@@ -202,7 +214,7 @@ function createWindow() {
 app.whenReady().then(() => {
   // Charger l'historique au démarrage
   loadDownloadHistory();
-  
+
   createWindow();
 
   // Créer le dossier des jeux s'il n'existe pas
@@ -237,9 +249,9 @@ app.on('window-all-closed', () => {
 
 // Vérifier l'état d'authentification
 ipcMain.handle('check-auth', async () => {
-  return { 
-    authenticated: currentUser !== null, 
-    user: currentUser ? { email: currentUser.email, uid: currentUser.uid } : null 
+  return {
+    authenticated: currentUser !== null,
+    user: currentUser ? { email: currentUser.email, uid: currentUser.uid } : null
   };
 });
 
@@ -250,7 +262,7 @@ ipcMain.handle('sign-in-google', async () => {
       throw new Error('Firebase non initialisé');
     }
     const provider = new GoogleAuthProvider();
-    
+
     // Dans Electron, signInWithPopup devrait fonctionner avec le navigateur intégré
     const result = await signInWithPopup(auth, provider);
     return { success: true, user: { email: result.user.email, uid: result.user.uid } };
@@ -293,12 +305,12 @@ ipcMain.handle('sign-out', async () => {
 ipcMain.handle('get-games', async () => {
   try {
     const games = await getGamesFromGitHub();
-    
+
     // Transformer les jeux GitHub au format attendu par l'application
     const formattedGames = games.map((game, index) => {
       const downloadLink = game.dl && game.dl.length > 0 ? game.dl[0] : '';
       const sourceInfo = downloadLink ? detectDownloadService(downloadLink) : { type: 'unknown', name: 'Inconnu' };
-      
+
       return {
         id: `game-${index}`,
         title: game.title,
@@ -313,14 +325,14 @@ ipcMain.handle('get-games', async () => {
         source: sourceInfo.name || 'Inconnu'
       };
     });
-    
+
     return { success: true, games: formattedGames };
   } catch (error) {
     console.error('Erreur récupération jeux:', error);
-    return { 
-      success: false, 
-      error: error.message || 'Erreur lors de la récupération des jeux depuis GitHub', 
-      games: [] 
+    return {
+      success: false,
+      error: error.message || 'Erreur lors de la récupération des jeux depuis GitHub',
+      games: []
     };
   }
 });
@@ -330,18 +342,30 @@ ipcMain.handle('install-game', async (event, game) => {
   try {
     // Générer un ID unique pour ce téléchargement
     const downloadId = `download-${Date.now()}-${++downloadIdCounter}`;
-    
-    // Utiliser le même dossier que l'autre application FrostApp
-    // Les jeux sont téléchargés et extraits directement dans ~/.FrostApp/downloads/nomdujeu
-    const gameDir = path.join(GAMES_DIR, sanitizeFileName(game.title));
-    
+
+    const downloadLink = game.downloadLink;
+
+    // Détecter si c'est un lien gofile
+    const isGofile = downloadLink && (downloadLink.toLowerCase().includes('gofile.io') || downloadLink.toLowerCase().includes('gofile'));
+
+    // Pour gofile, utiliser c:/sroff-game/lenomdujeux
+    // Sinon, utiliser le dossier par défaut
+    let gameDir;
+    if (isGofile) {
+      const cleanGameName = sanitizeFileName(game.title);
+      gameDir = path.join('c:', 'sroff-game', cleanGameName);
+      console.log('[Install] Téléchargement gofile détecté, utilisation de:', gameDir);
+    } else {
+      // Utiliser le même dossier que l'autre application FrostApp
+      // Les jeux sont téléchargés et extraits directement dans ~/.FrostApp/downloads/nomdujeu
+      gameDir = path.join(GAMES_DIR, sanitizeFileName(game.title));
+    }
+
     // Créer le dossier du jeu
     if (!fs.existsSync(gameDir)) {
       fs.mkdirSync(gameDir, { recursive: true });
     }
 
-    const downloadLink = game.downloadLink;
-    
     // Enregistrer le téléchargement dans la Map
     activeDownloads.set(downloadId, {
       id: downloadId,
@@ -352,7 +376,7 @@ ipcMain.handle('install-game', async (event, game) => {
       message: 'Démarrage...',
       startTime: Date.now()
     });
-    
+
     // Envoyer la notification de démarrage
     event.sender.send('download-started', {
       id: downloadId,
@@ -360,17 +384,17 @@ ipcMain.handle('install-game', async (event, game) => {
       status: 'starting',
       progress: 0
     });
-    
+
     // Détecter si c'est un torrent (vérifier l'URL)
-    const isTorrent = downloadLink.includes('.torrent') || 
-                      downloadLink.includes('magnet:') || 
-                      game.isTorrent;
-    
+    const isTorrent = downloadLink.includes('.torrent') ||
+      downloadLink.includes('magnet:') ||
+      game.isTorrent;
+
     // Lancer le téléchargement en arrière-plan (non bloquant)
-    const downloadPromise = isTorrent 
+    const downloadPromise = isTorrent
       ? downloadTorrent(downloadLink, gameDir, game.title, event, downloadId)
       : downloadAndExtractZip(downloadLink, gameDir, game.title, event, downloadId);
-    
+
     // Ne pas attendre la fin du téléchargement, retourner immédiatement
     downloadPromise.then(result => {
       const downloadInfo = activeDownloads.get(downloadId) || {
@@ -380,7 +404,7 @@ ipcMain.handle('install-game', async (event, game) => {
         progress: 0,
         startTime: Date.now()
       };
-      
+
       if (result.success) {
         const completedInfo = {
           ...downloadInfo,
@@ -388,9 +412,9 @@ ipcMain.handle('install-game', async (event, game) => {
           progress: 100,
           endTime: Date.now()
         };
-        
+
         activeDownloads.set(downloadId, completedInfo);
-        
+
         // Ajouter à l'historique
         downloadHistory.unshift({
           ...completedInfo,
@@ -398,21 +422,21 @@ ipcMain.handle('install-game', async (event, game) => {
           gameTitle: game.title,
           gameId: game.id
         });
-        
+
         // Garder seulement les 100 derniers téléchargements dans l'historique
         if (downloadHistory.length > 100) {
           downloadHistory.pop();
         }
-        
+
         // Sauvegarder l'historique
         saveDownloadHistory();
-        
+
         console.log('[Download] Téléchargement terminé:', game.title, 'Historique:', downloadHistory.length);
-        
+
         // Retirer immédiatement des téléchargements actifs
         activeDownloads.delete(downloadId);
         event.sender.send('download-removed-from-active', { id: downloadId });
-        
+
         event.sender.send('download-completed', {
           id: downloadId,
           gameTitle: game.title,
@@ -425,9 +449,9 @@ ipcMain.handle('install-game', async (event, game) => {
           error: result.error,
           endTime: Date.now()
         };
-        
+
         activeDownloads.set(downloadId, errorInfo);
-        
+
         // Ajouter à l'historique
         downloadHistory.unshift({
           ...errorInfo,
@@ -435,20 +459,20 @@ ipcMain.handle('install-game', async (event, game) => {
           gameTitle: game.title,
           gameId: game.id
         });
-        
+
         if (downloadHistory.length > 100) {
           downloadHistory.pop();
         }
-        
+
         // Sauvegarder l'historique
         saveDownloadHistory();
-        
+
         console.log('[Download] Erreur téléchargement:', game.title, 'Historique:', downloadHistory.length);
-        
+
         // Retirer immédiatement des téléchargements actifs
         activeDownloads.delete(downloadId);
         event.sender.send('download-removed-from-active', { id: downloadId });
-        
+
         event.sender.send('download-error', {
           id: downloadId,
           gameTitle: game.title,
@@ -463,7 +487,7 @@ ipcMain.handle('install-game', async (event, game) => {
         progress: 0,
         startTime: Date.now()
       };
-      
+
       // Vérifier si le téléchargement a été annulé manuellement
       // Si oui, ne pas ajouter à l'historique ici (évite les doublons)
       if (downloadInfo.status === 'cancelled' || error.message.includes('cancel') || error.message.includes('Cancel')) {
@@ -472,7 +496,7 @@ ipcMain.handle('install-game', async (event, game) => {
         activeDownloads.delete(downloadId);
         return;
       }
-      
+
       // Vérifier si le téléchargement existe déjà dans l'historique (évite les doublons)
       const existingInHistory = downloadHistory.find(d => d.id === downloadId);
       if (existingInHistory) {
@@ -480,16 +504,16 @@ ipcMain.handle('install-game', async (event, game) => {
         activeDownloads.delete(downloadId);
         return;
       }
-      
+
       const errorInfo = {
         ...downloadInfo,
         status: 'error',
         error: error.message,
         endTime: Date.now()
       };
-      
+
       activeDownloads.set(downloadId, errorInfo);
-      
+
       // Ajouter à l'historique
       downloadHistory.unshift({
         ...errorInfo,
@@ -497,30 +521,30 @@ ipcMain.handle('install-game', async (event, game) => {
         gameTitle: game.title,
         gameId: game.id
       });
-      
+
       if (downloadHistory.length > 100) {
         downloadHistory.pop();
       }
-      
+
       // Sauvegarder l'historique
       saveDownloadHistory();
-      
+
       console.log('[Download] Exception téléchargement:', game.title, error.message, 'Historique:', downloadHistory.length);
-      
+
       // Retirer immédiatement des téléchargements actifs
       activeDownloads.delete(downloadId);
       event.sender.send('download-removed-from-active', { id: downloadId });
-      
+
       event.sender.send('download-error', {
         id: downloadId,
         gameTitle: game.title,
         error: error.message
       });
     });
-    
+
     // Retourner immédiatement avec l'ID du téléchargement
-    return { 
-      success: true, 
+    return {
+      success: true,
       downloadId: downloadId,
       message: 'Téléchargement démarré'
     };
@@ -553,7 +577,7 @@ ipcMain.handle('cancel-download', async (event, downloadId) => {
     activeDownloads.set(downloadId, download);
 
     const processInfo = downloadProcesses.get(downloadId);
-    
+
     // Arrêter le processus de téléchargement
     if (processInfo) {
       if (processInfo.type === 'torrent' && processInfo.process) {
@@ -575,7 +599,7 @@ ipcMain.handle('cancel-download', async (event, downloadId) => {
     // Supprimer les fichiers téléchargés
     // Attendre un peu pour que les processus se terminent
     await new Promise(resolve => setTimeout(resolve, 500));
-    
+
     if (download.gameDir && fs.existsSync(download.gameDir)) {
       try {
         // Fonction récursive pour supprimer le dossier
@@ -603,7 +627,7 @@ ipcMain.handle('cancel-download', async (event, downloadId) => {
             }
           }
         };
-        
+
         // Essayer plusieurs fois avec fs.rmSync d'abord
         let deleted = false;
         for (let i = 0; i < 3; i++) {
@@ -634,7 +658,7 @@ ipcMain.handle('cancel-download', async (event, downloadId) => {
             }
           }
         }
-        
+
         if (!deleted && fs.existsSync(download.gameDir)) {
           console.error(`[Cancel] Impossible de supprimer complètement le dossier: ${download.gameDir}`);
         }
@@ -649,7 +673,7 @@ ipcMain.handle('cancel-download', async (event, downloadId) => {
       status: 'cancelled',
       endTime: Date.now()
     };
-    
+
     downloadHistory.unshift({
       ...cancelledInfo,
       id: downloadId,
@@ -664,12 +688,12 @@ ipcMain.handle('cancel-download', async (event, downloadId) => {
 
     // Sauvegarder l'historique
     saveDownloadHistory();
-    
+
     // Retirer des téléchargements actifs après un court délai
     setTimeout(() => {
       activeDownloads.delete(downloadId);
     }, 100);
-    
+
     // Notifier le renderer
     event.sender.send('download-removed-from-active', { id: downloadId });
     event.sender.send('download-cancelled', {
@@ -715,7 +739,7 @@ ipcMain.handle('window-is-maximized', () => {
 // Détecter le type de service de téléchargement
 function detectDownloadService(url) {
   const urlLower = url.toLowerCase();
-  
+
   if (urlLower.includes('gofile.io') || urlLower.includes('gofile')) {
     return { type: 'gofile', name: 'Gofile' };
   }
@@ -747,9 +771,9 @@ function detectDownloadService(url) {
     return { type: 'buzzheavier', name: 'BuzzHeavier' };
   }
   if (urlLower.includes('pixeldrain.com') || urlLower.includes('pixeldrain')) {
-    return { type: 'pixeldrain', name: 'PixelDrain' };d
+    return { type: 'pixeldrain', name: 'PixelDrain' }; d
   }
-  
+
   return { type: 'unknown', name: 'Inconnu' };
 }
 
@@ -779,14 +803,14 @@ async function followRedirects(url, maxRedirects = 10) {
           currentUrl = location.startsWith('http') ? location : new URL(location, currentUrl).href;
           redirectCount++;
           console.log(`Redirection ${redirectCount}: ${currentUrl}`);
-          
+
           // Détecter si on arrive sur un service qui nécessite une interaction
           const service = detectDownloadService(currentUrl);
           if (service.type !== 'unknown') {
             console.log(`Service détecté: ${service.name}`);
             return { url: currentUrl, service: service };
           }
-          
+
           continue;
         }
       }
@@ -796,25 +820,25 @@ async function followRedirects(url, maxRedirects = 10) {
       if (service.type !== 'unknown') {
         return { url: currentUrl, service: service };
       }
-      
+
       return { url: currentUrl, service: null };
     } catch (error) {
       // Si c'est une erreur de redirection, récupérer la location depuis les headers
       if (error.response) {
         const status = error.response.status;
         const location = error.response.headers.location;
-        
+
         if (status >= 300 && status < 400 && location) {
           currentUrl = location.startsWith('http') ? location : new URL(location, currentUrl).href;
           redirectCount++;
           console.log(`Redirection ${redirectCount} (via error): ${currentUrl}`);
-          
+
           // Détecter le service
           const service = detectDownloadService(currentUrl);
           if (service.type !== 'unknown') {
             return { url: currentUrl, service: service };
           }
-          
+
           continue;
         }
       }
@@ -830,11 +854,11 @@ async function followRedirects(url, maxRedirects = 10) {
               'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
             }
           });
-          
+
           // Récupérer l'URL finale
           const finalUrl = getResponse.request.res.responseUrl || getResponse.request.url || currentUrl;
           console.log('URL finale après GET:', finalUrl);
-          
+
           const service = detectDownloadService(finalUrl);
           return { url: finalUrl, service: service };
         } catch (getError) {
@@ -843,7 +867,7 @@ async function followRedirects(url, maxRedirects = 10) {
           return { url: currentUrl, service: service };
         }
       }
-      
+
       // Si tout échoue, retourner l'URL actuelle
       console.warn('Impossible de suivre les redirections, utilisation de l\'URL actuelle:', currentUrl);
       const service = detectDownloadService(currentUrl);
@@ -860,15 +884,15 @@ async function followRedirects(url, maxRedirects = 10) {
 async function downloadAndExtractZip(url, destinationDir, gameTitle, event, downloadId = null) {
   try {
     const updateProgress = (status, progress, message = null, service = null) => {
-      const update = { 
+      const update = {
         id: downloadId,
-        gameTitle, 
-        status, 
-        progress 
+        gameTitle,
+        status,
+        progress
       };
       if (message) update.message = message;
       if (service) update.service = service;
-      
+
       // Mettre à jour la Map
       if (downloadId && activeDownloads.has(downloadId)) {
         const download = activeDownloads.get(downloadId);
@@ -879,48 +903,48 @@ async function downloadAndExtractZip(url, destinationDir, gameTitle, event, down
           message: message || download.message
         });
       }
-      
+
       event.sender.send('download-progress', update);
     };
-    
+
     updateProgress('resolving-url', 0);
 
     // Suivre les redirections pour obtenir le vrai lien (ClicTune, etc.)
     const redirectResult = await followRedirects(url);
     const realUrl = redirectResult.url;
     const service = redirectResult.service;
-    
+
     console.log('URL résolue:', realUrl);
-    
+
     // Vérifier d'abord si c'est un lien direct vers un fichier ZIP
     // Si oui, on peut télécharger directement avec axios
-    const isDirectZipLink = realUrl.toLowerCase().endsWith('.zip') || 
-                           realUrl.toLowerCase().includes('.zip?') ||
-                           realUrl.toLowerCase().includes('.zip#');
-    
+    const isDirectZipLink = realUrl.toLowerCase().endsWith('.zip') ||
+      realUrl.toLowerCase().includes('.zip?') ||
+      realUrl.toLowerCase().includes('.zip#');
+
     // Si ce n'est PAS un lien direct ZIP, utiliser le script Python
     // Le script Python peut gérer tous les services (Gofile, Mega, BuzzHeavier, etc.)
     if (!isDirectZipLink) {
       const serviceName = service ? service.name : 'Service inconnu';
       console.log(`Utilisation du script Python pour télécharger depuis ${serviceName}...`);
-      
+
       updateProgress('downloading-with-python', 0, `Téléchargement via ${serviceName}...`, serviceName);
-      
+
       // Utiliser le script Python pour télécharger
       return await downloadWithPython(realUrl, destinationDir, gameTitle, event, downloadId);
     }
-    
+
     // Si c'est un lien direct ZIP, continuer avec le téléchargement axios normal
     console.log('Lien direct ZIP détecté, téléchargement direct...');
 
     updateProgress('downloading', 0);
 
     const tempZipPath = path.join(destinationDir, 'temp.zip');
-    
+
     // Créer un token d'annulation pour axios
     const CancelToken = axios.CancelToken;
     const source = CancelToken.source();
-    
+
     // Stocker le token d'annulation
     if (downloadId) {
       downloadProcesses.set(downloadId, {
@@ -928,7 +952,7 @@ async function downloadAndExtractZip(url, destinationDir, gameTitle, event, down
         cancelToken: source
       });
     }
-    
+
     // Télécharger le fichier avec gestion d'erreurs améliorée
     const response = await axios({
       url: realUrl,
@@ -960,11 +984,11 @@ async function downloadAndExtractZip(url, destinationDir, gameTitle, event, down
     // Si c'est du HTML, utiliser le script Python pour télécharger
     if (contentType.includes('text/html')) {
       const detectedService = detectDownloadService(realUrl);
-      
+
       console.log(`Content-Type HTML détecté, utilisation du script Python pour télécharger depuis ${detectedService.name}...`);
-      
+
       updateProgress('downloading-with-python', 0, `Téléchargement via ${detectedService.name}...`, detectedService.name);
-      
+
       // Utiliser le script Python pour télécharger
       return await downloadWithPython(realUrl, destinationDir, gameTitle, event, downloadId);
     }
@@ -1006,27 +1030,27 @@ async function downloadAndExtractZip(url, destinationDir, gameTitle, event, down
     // Vérifier les magic bytes du fichier (PK pour ZIP)
     const fileBuffer = fs.readFileSync(tempZipPath, { start: 0, end: Math.min(100, stats.size) });
     const isZip = fileBuffer.length >= 2 && fileBuffer[0] === 0x50 && fileBuffer[1] === 0x4B; // PK signature
-    
+
     if (!isZip) {
       // Vérifier si c'est du HTML (commence par <)
       const textStart = fileBuffer.toString('utf-8', 0, Math.min(100, fileBuffer.length));
       const lowerText = textStart.toLowerCase();
-      
-      if (lowerText.trim().startsWith('<') || 
-          lowerText.includes('<!doctype') || 
-          lowerText.includes('<html') ||
-          lowerText.includes('<body') ||
-          lowerText.includes('html>') ||
-          textStart.includes('Error') ||
-          textStart.includes('error') ||
-          textStart.includes('404') ||
-          textStart.includes('Not Found')) {
+
+      if (lowerText.trim().startsWith('<') ||
+        lowerText.includes('<!doctype') ||
+        lowerText.includes('<html') ||
+        lowerText.includes('<body') ||
+        lowerText.includes('html>') ||
+        textStart.includes('Error') ||
+        textStart.includes('error') ||
+        textStart.includes('404') ||
+        textStart.includes('Not Found')) {
         if (fs.existsSync(tempZipPath)) {
           fs.unlinkSync(tempZipPath);
         }
         throw new Error('Le lien redirige vers une page HTML au lieu d\'un fichier ZIP. Le lien de téléchargement peut être incorrect ou nécessiter une authentification. URL: ' + realUrl.substring(0, 100));
       }
-      
+
       // Vérifier si c'est un fichier torrent
       if (textStart.includes('d8:announce') || textStart.includes('magnet:')) {
         if (fs.existsSync(tempZipPath)) {
@@ -1034,7 +1058,7 @@ async function downloadAndExtractZip(url, destinationDir, gameTitle, event, down
         }
         throw new Error('Le fichier téléchargé est un torrent, pas un ZIP. Utilisez l\'option torrent pour ce jeu.');
       }
-      
+
       // Vérifier si c'est du JSON (peut-être une erreur API)
       if (textStart.trim().startsWith('{') || textStart.trim().startsWith('[')) {
         if (fs.existsSync(tempZipPath)) {
@@ -1042,7 +1066,7 @@ async function downloadAndExtractZip(url, destinationDir, gameTitle, event, down
         }
         throw new Error('Le serveur a retourné du JSON au lieu d\'un fichier ZIP. Le lien peut être incorrect.');
       }
-      
+
       if (fs.existsSync(tempZipPath)) {
         fs.unlinkSync(tempZipPath);
       }
@@ -1078,7 +1102,7 @@ async function downloadAndExtractZip(url, destinationDir, gameTitle, event, down
 
     // Trouver le fichier .exe principal (recherche récursive dans tous les sous-dossiers)
     const exePath = findExeFile(destinationDir, gameTitle);
-    
+
     if (exePath) {
       // Créer un raccourci sur le bureau avec le nom du jeu
       const desktopPath = path.join(require('os').homedir(), 'Desktop');
@@ -1092,8 +1116,8 @@ async function downloadAndExtractZip(url, destinationDir, gameTitle, event, down
 
     updateProgress('completed', 100);
 
-    return { 
-      success: true, 
+    return {
+      success: true,
       gameDir: destinationDir,
       exePath: exePath || null
     };
@@ -1116,14 +1140,14 @@ function extractZip(zipPath, destinationDir, event, gameTitle, downloadId = null
 
     // Fonction helper pour mettre à jour la progression
     const updateProgress = (status, progress, message = null) => {
-      const update = { 
+      const update = {
         id: downloadId,
-        gameTitle, 
-        status, 
-        progress 
+        gameTitle,
+        status,
+        progress
       };
       if (message) update.message = message;
-      
+
       // Mettre à jour la Map
       if (downloadId && activeDownloads.has(downloadId)) {
         const download = activeDownloads.get(downloadId);
@@ -1134,7 +1158,7 @@ function extractZip(zipPath, destinationDir, event, gameTitle, downloadId = null
           message: message || download.message
         });
       }
-      
+
       event.sender.send('download-progress', update);
     };
 
@@ -1180,7 +1204,7 @@ function extractZip(zipPath, destinationDir, event, gameTitle, downloadId = null
 
                 const filePath = path.join(destinationDir, entry.fileName);
                 const dirPath = path.dirname(filePath);
-                
+
                 if (!fs.existsSync(dirPath)) {
                   fs.mkdirSync(dirPath, { recursive: true });
                 }
@@ -1191,7 +1215,7 @@ function extractZip(zipPath, destinationDir, event, gameTitle, downloadId = null
                 writeStream.on('close', () => {
                   extractedEntries++;
                   const progress = totalEntries > 0 ? Math.round((extractedEntries / totalEntries) * 100) : 0;
-                  
+
                   updateProgress('extracting', progress);
 
                   zipfile2.readEntry();
@@ -1221,20 +1245,59 @@ function extractZip(zipPath, destinationDir, event, gameTitle, downloadId = null
 async function downloadWithPython(url, destinationDir, gameTitle, event, downloadId = null) {
   return new Promise((resolve, reject) => {
     try {
-      const script = getPythonScriptPath('download_manager.py');
-      const pythonDownloadId = downloadId || `dl_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      const userDataPath = app.getPath('userData');
-      
+      // Détecter si c'est un lien gofile
+      const isGofile = url.toLowerCase().includes('gofile.io') || url.toLowerCase().includes('gofile');
+
+      // Si c'est gofile, utiliser gofile-downloader.py
+      let script;
+      let scriptArgs;
+
+      if (isGofile) {
+        // Utiliser gofile-downloader.py pour gofile
+        script = getPythonScriptPath('gofile-downloader.py');
+
+        // Extraire le mot de passe depuis l'URL si présent (format: ?password=xxx ou &password=xxx)
+        let password = '';
+        try {
+          const urlObj = new URL(url);
+          password = urlObj.searchParams.get('password') || '';
+        } catch (e) {
+          // Si l'URL n'est pas valide, essayer une extraction simple
+          const passwordMatch = url.match(/[?&]password=([^&]+)/i);
+          if (passwordMatch) {
+            password = passwordMatch[1];
+          }
+        }
+
+        // Utiliser le nom du jeu pour télécharger dans c:/sroff-game/lenomdujeux
+        const cleanGameName = sanitizeFileName(gameTitle);
+
+        // gofile-downloader.py attend: url password nomdujeux
+        scriptArgs = [script, url, password, cleanGameName];
+
+        console.log('[Gofile Download] Utilisation de gofile-downloader.py');
+        console.log('[Gofile Download] URL:', url);
+        console.log('[Gofile Download] Password:', password ? '***' : '(aucun)');
+        console.log('[Gofile Download] Nom du jeu:', cleanGameName);
+        console.log('[Gofile Download] Téléchargement dans: c:/sroff-game/' + cleanGameName);
+      } else {
+        // Pour les autres services, utiliser download_manager.py
+        script = getPythonScriptPath('download_manager.py');
+        const pythonDownloadId = downloadId || `dl_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const userDataPath = app.getPath('userData');
+        scriptArgs = [script, 'download', url, destinationDir, pythonDownloadId, userDataPath];
+      }
+
       // Fonction helper pour mettre à jour la progression
       const updateProgress = (status, progress, message = null) => {
-        const update = { 
+        const update = {
           id: downloadId,
-          gameTitle, 
-          status, 
-          progress 
+          gameTitle,
+          status,
+          progress
         };
         if (message) update.message = message;
-        
+
         // Mettre à jour la Map
         if (downloadId && activeDownloads.has(downloadId)) {
           const download = activeDownloads.get(downloadId);
@@ -1245,19 +1308,21 @@ async function downloadWithPython(url, destinationDir, gameTitle, event, downloa
             message: message || download.message
           });
         }
-        
+
         event.sender.send('download-progress', update);
       };
-      
+
       console.log('[Python Download] Démarrage téléchargement:', gameTitle);
       console.log('[Python Download] Script:', script);
       console.log('[Python Download] URL:', url);
-      console.log('[Python Download] Destination:', destinationDir);
-      
-      const proc = spawn(pythonExe, [script, 'download', url, destinationDir, pythonDownloadId, userDataPath], { 
-        windowsHide: true 
+      if (!isGofile) {
+        console.log('[Python Download] Destination:', destinationDir);
+      }
+
+      const proc = spawn(pythonExe, scriptArgs, {
+        windowsHide: true
       });
-      
+
       // Stocker le processus Python
       if (downloadId) {
         downloadProcesses.set(downloadId, {
@@ -1265,55 +1330,88 @@ async function downloadWithPython(url, destinationDir, gameTitle, event, downloa
           process: proc
         });
       }
-      
+
       let lastProgress = 0;
       let lastMessage = '';
-      
+
       proc.stdout.on('data', (data) => {
         const lines = data.toString().split('\n').filter(line => line.trim());
         for (const line of lines) {
-          try {
-            const status = JSON.parse(line);
-            if (status.progress !== undefined) {
-              lastProgress = status.progress;
+          if (isGofile) {
+            // Pour gofile-downloader.py, les messages sont en texte brut
+            // Essayer d'extraire des informations de progression depuis les messages
+            console.log('[Gofile Download] Output:', line);
+
+            // Détecter les messages de progression (ex: "Downloading file.zip: 50%")
+            const progressMatch = line.match(/(\d+(?:\.\d+)?)\s*%/i);
+            if (progressMatch) {
+              lastProgress = parseFloat(progressMatch[1]);
+              updateProgress('downloading-with-python', lastProgress, line);
+            } else if (line.toLowerCase().includes('downloading') || line.toLowerCase().includes('extraction')) {
+              // Mettre à jour le message même sans pourcentage
+              lastMessage = line;
+              updateProgress('downloading-with-python', lastProgress, lastMessage);
             }
-            if (status.message) {
-              lastMessage = status.message;
+          } else {
+            // Pour download_manager.py, les messages sont en JSON
+            try {
+              const status = JSON.parse(line);
+              if (status.progress !== undefined) {
+                lastProgress = status.progress;
+              }
+              if (status.message) {
+                lastMessage = status.message;
+              }
+
+              updateProgress('downloading-with-python', status.progress || lastProgress, status.message || lastMessage);
+            } catch (e) {
+              // Ignorer les lignes non-JSON
+              console.log('[Python Download] Output:', line);
             }
-            
-            updateProgress('downloading-with-python', status.progress || lastProgress, status.message || lastMessage);
-          } catch (e) {
-            // Ignorer les lignes non-JSON
-            console.log('[Python Download] Output:', line);
           }
         }
       });
-      
+
       proc.stderr.on('data', (data) => {
         console.error('[Python Download] Error:', data.toString());
       });
-      
+
       proc.on('close', (code) => {
         if (code === 0) {
+          // Pour gofile, les fichiers sont téléchargés dans c:/sroff-game/lenomdujeux
+          let finalDestinationDir = destinationDir;
+          if (isGofile) {
+            const cleanGameName = sanitizeFileName(gameTitle);
+            finalDestinationDir = path.join('c:', 'sroff-game', cleanGameName);
+            console.log('[Gofile Download] Recherche des fichiers dans:', finalDestinationDir);
+          }
+
+          // Vérifier si le dossier existe
+          if (!fs.existsSync(finalDestinationDir)) {
+            console.warn(`[Python Download] Le dossier de destination n'existe pas: ${finalDestinationDir}`);
+            reject(new Error(`Le dossier de destination n'existe pas: ${finalDestinationDir}`));
+            return;
+          }
+
           // Vérifier si un fichier ZIP a été téléchargé
-          const files = fs.readdirSync(destinationDir);
+          const files = fs.readdirSync(finalDestinationDir);
           const zipFile = files.find(f => f.endsWith('.zip'));
-          
+
           if (zipFile) {
-            const zipPath = path.join(destinationDir, zipFile);
+            const zipPath = path.join(finalDestinationDir, zipFile);
             updateProgress('extracting', 0);
-            
+
             // Extraire le ZIP
-            extractZip(zipPath, destinationDir, event, gameTitle, downloadId)
+            extractZip(zipPath, finalDestinationDir, event, gameTitle, downloadId)
               .then(async () => {
                 // Supprimer le ZIP après extraction
                 if (fs.existsSync(zipPath)) {
                   fs.unlinkSync(zipPath);
                 }
-                
+
                 // Trouver le fichier .exe principal (recherche récursive dans tous les sous-dossiers)
-                const exePath = findExeFile(destinationDir, gameTitle);
-                
+                const exePath = findExeFile(finalDestinationDir, gameTitle);
+
                 if (exePath) {
                   // Créer un raccourci sur le bureau avec le nom du jeu
                   try {
@@ -1327,33 +1425,33 @@ async function downloadWithPython(url, destinationDir, gameTitle, event, downloa
                     console.error('❌ Erreur lors de la création du raccourci:', err);
                   }
                 } else {
-                  console.warn(`Aucun fichier .exe trouvé dans ${destinationDir}`);
+                  console.warn(`Aucun fichier .exe trouvé dans ${finalDestinationDir}`);
                 }
-                
+
                 event.sender.send('download-progress', {
                   gameTitle,
                   status: 'completed',
                   progress: 100
                 });
-                
+
                 resolve({
                   success: true,
-                  gameDir: destinationDir,
+                  gameDir: finalDestinationDir,
                   exePath: exePath || null
                 });
               })
               .catch(reject);
           } else {
             // Pas de ZIP, peut-être que le script a déjà extrait
-            const exePath = findExeFile(destinationDir, gameTitle);
-            
+            const exePath = findExeFile(finalDestinationDir, gameTitle);
+
             if (exePath) {
               // Créer un raccourci sur le bureau avec le nom du jeu
               const desktopPath = path.join(require('os').homedir(), 'Desktop');
               const cleanGameName = sanitizeFileName(gameTitle);
               const shortcutPath = path.join(desktopPath, `${cleanGameName}.lnk`);
               console.log(`Création du raccourci: ${shortcutPath} -> ${exePath}`);
-              
+
               createShortcut(exePath, shortcutPath, gameTitle)
                 .then(() => {
                   console.log(`✅ Raccourci créé avec succès: ${shortcutPath}`);
@@ -1362,18 +1460,18 @@ async function downloadWithPython(url, destinationDir, gameTitle, event, downloa
                   console.error('❌ Erreur lors de la création du raccourci:', err);
                 });
             } else {
-              console.warn(`Aucun fichier .exe trouvé dans ${destinationDir}`);
+              console.warn(`Aucun fichier .exe trouvé dans ${finalDestinationDir}`);
             }
-            
+
             event.sender.send('download-progress', {
               gameTitle,
               status: 'completed',
               progress: 100
             });
-            
+
             resolve({
               success: true,
-              gameDir: destinationDir,
+              gameDir: finalDestinationDir,
               exePath: exePath || null
             });
           }
@@ -1381,7 +1479,7 @@ async function downloadWithPython(url, destinationDir, gameTitle, event, downloa
           reject(new Error(`Erreur lors du téléchargement Python (code ${code})`));
         }
       });
-      
+
       proc.on('error', (err) => {
         reject(new Error(`Impossible de lancer le script Python: ${err.message}`));
       });
@@ -1395,7 +1493,7 @@ async function downloadWithPython(url, destinationDir, gameTitle, event, downloa
 async function downloadTorrent(torrentUrl, destinationDir, gameTitle, event, downloadId = null) {
   return new Promise((resolve, reject) => {
     const client = new WebTorrent();
-    
+
     // Stocker le client WebTorrent
     if (downloadId) {
       downloadProcesses.set(downloadId, {
@@ -1406,14 +1504,14 @@ async function downloadTorrent(torrentUrl, destinationDir, gameTitle, event, dow
 
     // Fonction helper pour mettre à jour la progression
     const updateProgress = (status, progress, message = null) => {
-      const update = { 
+      const update = {
         id: downloadId,
-        gameTitle, 
-        status, 
-        progress 
+        gameTitle,
+        status,
+        progress
       };
       if (message) update.message = message;
-      
+
       // Mettre à jour la Map
       if (downloadId && activeDownloads.has(downloadId)) {
         const download = activeDownloads.get(downloadId);
@@ -1424,7 +1522,7 @@ async function downloadTorrent(torrentUrl, destinationDir, gameTitle, event, dow
           message: message || download.message
         });
       }
-      
+
       event.sender.send('download-progress', update);
     };
 
@@ -1441,7 +1539,7 @@ async function downloadTorrent(torrentUrl, destinationDir, gameTitle, event, dow
 
         // Trouver le fichier .exe principal
         const exePath = findExeFile(destinationDir, gameTitle);
-        
+
         if (exePath) {
           // Créer un raccourci sur le bureau avec le nom du jeu
           const desktopPath = path.join(require('os').homedir(), 'Desktop');
@@ -1450,32 +1548,32 @@ async function downloadTorrent(torrentUrl, destinationDir, gameTitle, event, dow
           console.log(`Création du raccourci: ${shortcutPath} -> ${exePath}`);
           createShortcut(exePath, shortcutPath, gameTitle).then(() => {
             updateProgress('completed', 100);
-            
+
             // Nettoyer le processus
             if (downloadId) {
               downloadProcesses.delete(downloadId);
             }
-            
+
             client.destroy();
-            resolve({ 
-              success: true, 
+            resolve({
+              success: true,
               gameDir: destinationDir,
-              exePath: exePath 
+              exePath: exePath
             });
           }).catch(reject);
         } else {
           updateProgress('completed', 100);
-          
+
           // Nettoyer le processus
           if (downloadId) {
             downloadProcesses.delete(downloadId);
           }
-          
+
           client.destroy();
-          resolve({ 
-            success: true, 
+          resolve({
+            success: true,
             gameDir: destinationDir,
-            exePath: null 
+            exePath: null
           });
         }
       });
@@ -1485,7 +1583,7 @@ async function downloadTorrent(torrentUrl, destinationDir, gameTitle, event, dow
         if (downloadId) {
           downloadProcesses.delete(downloadId);
         }
-        
+
         client.destroy();
         updateProgress('error', 0, err.message);
         event.sender.send('download-error', {
@@ -1504,22 +1602,22 @@ function findExeFile(dir, gameTitle = '') {
   if (!fs.existsSync(dir)) {
     return null;
   }
-  
+
   try {
     const files = fs.readdirSync(dir, { withFileTypes: true });
     const exeFiles = [];
-    
+
     // D'abord, chercher dans les fichiers de la racine
     for (const file of files) {
       const fullPath = path.join(dir, file.name);
-      
+
       if (file.isDirectory()) {
         // Ignorer certains dossiers système
         const dirName = file.name.toLowerCase();
         if (dirName === '__pycache__' || dirName === 'node_modules' || dirName.startsWith('.')) {
           continue;
         }
-        
+
         // Chercher récursivement dans les sous-dossiers
         const exe = findExeFile(fullPath, gameTitle);
         if (exe) {
@@ -1527,19 +1625,19 @@ function findExeFile(dir, gameTitle = '') {
         }
       } else if (file.name.endsWith('.exe')) {
         const fileName = file.name.toLowerCase();
-        
+
         // Ignorer les fichiers système et d'installation
-        if (fileName.includes('uninstall') || 
-            fileName.includes('setup') || 
-            fileName.includes('installer') ||
-            fileName.includes('launcher') && fileName.includes('steam')) {
+        if (fileName.includes('uninstall') ||
+          fileName.includes('setup') ||
+          fileName.includes('installer') ||
+          fileName.includes('launcher') && fileName.includes('steam')) {
           continue;
         }
-        
+
         exeFiles.push(fullPath);
       }
     }
-    
+
     // Si on a trouvé des .exe, choisir le meilleur
     if (exeFiles.length > 0) {
       // Priorité 1: Fichier avec le nom du jeu (si disponible)
@@ -1553,7 +1651,7 @@ function findExeFile(dir, gameTitle = '') {
           }
         }
       }
-      
+
       // Priorité 2: Fichier dans un dossier "bin", "game", "game/bin", etc.
       const preferredDirs = ['bin', 'game', 'game\\bin', 'games', 'exe'];
       for (const exe of exeFiles) {
@@ -1565,12 +1663,12 @@ function findExeFile(dir, gameTitle = '') {
           }
         }
       }
-      
+
       // Priorité 3: Prendre le premier .exe trouvé (pas uninstall/setup)
       console.log(`Fichier .exe trouvé: ${exeFiles[0]}`);
       return exeFiles[0];
     }
-    
+
     return null;
   } catch (error) {
     console.error(`Erreur lors de la recherche de .exe dans ${dir}:`, error);
@@ -1586,12 +1684,12 @@ function sanitizeFileName(fileName) {
 // Vérifier si un jeu est déjà installé
 ipcMain.handle('is-game-installed', (event, gameTitle) => {
   const gameDir = path.join(GAMES_DIR, sanitizeFileName(gameTitle));
-  
+
   // Vérifier que le dossier existe
   if (!fs.existsSync(gameDir)) {
     return false;
   }
-  
+
   // Vérifier qu'il y a au moins un fichier .exe dans le dossier
   // Cela garantit que le jeu est réellement installé et pas juste un dossier vide
   const exePath = findExeFile(gameDir, gameTitle);
@@ -1612,25 +1710,25 @@ ipcMain.handle('get-game-path', (event, gameTitle) => {
 ipcMain.handle('launch-game', async (event, gameTitle) => {
   try {
     const gameDir = path.join(GAMES_DIR, sanitizeFileName(gameTitle));
-    
+
     if (!fs.existsSync(gameDir)) {
       return { success: false, error: 'Le jeu n\'est pas installé' };
     }
-    
+
     const exePath = findExeFile(gameDir, gameTitle);
-    
+
     if (!exePath) {
       return { success: false, error: 'Fichier exécutable introuvable' };
     }
-    
+
     // Lancer le jeu
     const gameProcess = spawn(exePath, [], {
       detached: true,
       stdio: 'ignore'
     });
-    
+
     gameProcess.unref(); // Permet au processus de continuer après la fermeture de l'app
-    
+
     console.log(`✅ Jeu lancé: ${gameTitle} (${exePath})`);
     return { success: true, exePath };
   } catch (error) {
@@ -1643,18 +1741,18 @@ ipcMain.handle('launch-game', async (event, gameTitle) => {
 ipcMain.handle('get-installed-games', async () => {
   try {
     const installedGames = [];
-    
+
     if (!fs.existsSync(GAMES_DIR)) {
       return installedGames;
     }
-    
+
     const gameDirs = fs.readdirSync(GAMES_DIR, { withFileTypes: true });
-    
+
     for (const dir of gameDirs) {
       if (dir.isDirectory()) {
         const gameDir = path.join(GAMES_DIR, dir.name);
         const exePath = findExeFile(gameDir, dir.name);
-        
+
         if (exePath) {
           installedGames.push({
             title: dir.name,
@@ -1664,7 +1762,7 @@ ipcMain.handle('get-installed-games', async () => {
         }
       }
     }
-    
+
     return installedGames;
   } catch (error) {
     console.error('Erreur lors de la récupération des jeux installés:', error);
@@ -1676,20 +1774,20 @@ ipcMain.handle('get-installed-games', async () => {
 ipcMain.handle('uninstall-game', async (event, gameTitle) => {
   try {
     const gameDir = path.join(GAMES_DIR, sanitizeFileName(gameTitle));
-    
+
     if (!fs.existsSync(gameDir)) {
       return { success: false, error: 'Le jeu n\'est pas installé' };
     }
-    
+
     // Supprimer le dossier du jeu
     fs.rmSync(gameDir, { recursive: true, force: true });
     console.log(`✅ Dossier du jeu supprimé: ${gameDir}`);
-    
+
     // Supprimer le raccourci sur le bureau
     const desktopPath = path.join(require('os').homedir(), 'Desktop');
     const cleanGameName = sanitizeFileName(gameTitle);
     const shortcutPath = path.join(desktopPath, `${cleanGameName}.lnk`);
-    
+
     if (fs.existsSync(shortcutPath)) {
       try {
         fs.unlinkSync(shortcutPath);
@@ -1698,7 +1796,7 @@ ipcMain.handle('uninstall-game', async (event, gameTitle) => {
         console.warn(`⚠️ Impossible de supprimer le raccourci: ${err.message}`);
       }
     }
-    
+
     console.log(`✅ Jeu désinstallé: ${gameTitle}`);
     return { success: true };
   } catch (error) {
@@ -1764,7 +1862,7 @@ async function getLatestCommit() {
         'User-Agent': 'Sroff-Launcher'
       }
     });
-    
+
     const commit = response.data;
     return {
       sha: commit.sha,
@@ -1891,15 +1989,15 @@ ipcMain.handle('perform-update', async (event) => {
     // Télécharger la nouvelle version
     event.sender.send('update-progress', { status: 'downloading', progress: 30, message: 'Téléchargement...' });
     const zipUrl = `https://github.com/${GITHUB_REPO}/archive/refs/heads/${GITHUB_BRANCH}.zip`;
-    
+
     // Créer le dossier temp s'il n'existe pas
     const tempDir = app.getPath('temp');
     if (!fs.existsSync(tempDir)) {
       fs.mkdirSync(tempDir, { recursive: true });
     }
-    
+
     const zipPath = path.join(tempDir, `sroff-update-${Date.now()}.zip`);
-    
+
     try {
       const response = await axios({
         method: 'GET',
@@ -1933,7 +2031,7 @@ ipcMain.handle('perform-update', async (event) => {
     // Extraire
     event.sender.send('update-progress', { status: 'extracting', progress: 60, message: 'Extraction...' });
     const extractPath = path.join(tempDir, 'sroff-extract');
-    
+
     // Nettoyer l'ancien dossier d'extraction s'il existe
     if (fs.existsSync(extractPath)) {
       try {
@@ -1942,7 +2040,7 @@ ipcMain.handle('perform-update', async (event) => {
         // Ignorer si on ne peut pas supprimer
       }
     }
-    
+
     fs.mkdirSync(extractPath, { recursive: true });
 
     try {
@@ -1958,7 +2056,7 @@ ipcMain.handle('perform-update', async (event) => {
             }
             return reject(new Error('Erreur ouverture ZIP: ' + err.message));
           }
-          
+
           zipfile.readEntry();
           zipfile.on('entry', (entry) => {
             if (/\/$/.test(entry.fileName)) {
@@ -1995,7 +2093,7 @@ ipcMain.handle('perform-update', async (event) => {
               });
             }
           });
-          
+
           zipfile.on('end', resolve);
           zipfile.on('error', (err) => {
             reject(new Error('Erreur extraction ZIP: ' + err.message));
@@ -2016,7 +2114,7 @@ ipcMain.handle('perform-update', async (event) => {
     // Déplacer vers le dossier final
     event.sender.send('update-progress', { status: 'installing', progress: 80, message: 'Installation...' });
     const extractedDir = path.join(extractPath, `${GITHUB_REPO.split('/')[1]}-${GITHUB_BRANCH}`);
-    
+
     // Fonction helper pour copier récursivement
     const copyRecursive = (src, dest) => {
       if (!fs.existsSync(dest)) {
@@ -2062,7 +2160,7 @@ ipcMain.handle('perform-update', async (event) => {
         throw err;
       }
     }
-    
+
     // Si le dossier existe encore, essayer de le supprimer
     if (fs.existsSync(installDir)) {
       try {
@@ -2072,7 +2170,7 @@ ipcMain.handle('perform-update', async (event) => {
         console.log('[Update] Impossible de supprimer, copie par-dessus');
       }
     }
-    
+
     // Déplacer ou copier le dossier extrait
     try {
       if (!fs.existsSync(installDir)) {
@@ -2094,7 +2192,7 @@ ipcMain.handle('perform-update', async (event) => {
     } catch (e) {
       console.error('[Update] Erreur suppression ZIP:', e);
     }
-    
+
     try {
       if (fs.existsSync(extractPath)) {
         fs.rmSync(extractPath, { recursive: true, force: true });
@@ -2106,7 +2204,7 @@ ipcMain.handle('perform-update', async (event) => {
 
     // Créer les fichiers .env
     event.sender.send('update-progress', { status: 'configuring', progress: 90, message: 'Configuration...' });
-    
+
     const envContent = `# Configuration Firebase
 
 FIREBASE_API_KEY=AIzaSyCfOHNKbsuVR6wwDZGEdtTtmrR048hYzYY
@@ -2172,4 +2270,5 @@ End If
     return { success: false, error: error.message };
   }
 });
+
 
